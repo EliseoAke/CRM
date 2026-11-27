@@ -99,6 +99,22 @@
           "lista": true
         },
         {
+          "n": "tecnologia",
+          "l": "Tecnología",
+          "t": "select",
+          "op": [
+            "fibra",
+            "antena"
+          ],
+          "def": "fibra"
+        },
+        {
+          "n": "localidades",
+          "l": "Localidades donde aplica",
+          "t": "text",
+          "lista": true
+        },
+        {
           "n": "tipo",
           "l": "Tipo",
           "t": "select",
@@ -127,6 +143,12 @@
           "l": "Precio mensual (con IVA)",
           "t": "money",
           "req": true,
+          "lista": true
+        },
+        {
+          "n": "precio_pronto_pago",
+          "l": "Precio con pago puntual (10% desc.)",
+          "t": "money",
           "lista": true
         },
         {
