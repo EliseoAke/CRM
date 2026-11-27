@@ -58,13 +58,13 @@ WhatsApp del empleado ─▶ "Mayalink · Asistente por WhatsApp" ─▶ ¿emple
 - **Cobranza** (diario 7:00): las facturas pendientes con fecha límite pasada pasan a *vencida*; los clientes activos con una factura sin pagar más de 3 días después del vencimiento pasan a *suspendido*. Al registrar el cobro en la app, el cliente se reactiva solo. El corte real en el router/OLT sigue siendo manual.
 - **Recordatorios WhatsApp** (diario 9:00): a cada factura sin pagar le manda una sola vez el aviso que le toque (factura emitida, pago por vencer un día antes, pago vencido, servicio suspendido) y lo anota en `ml_mensajes`. Los envíos con error se reintentan al día siguiente.
 
-## Asistente para empleados
+## Mayito, el asistente para empleados
 
-El **Asistente Mayalink** explica los módulos y procesos del ERP, consulta clientes, planes, facturas, tickets, inventario, prospectos y el catálogo de cuentas, y levanta tickets de soporte. No ve salarios, nómina, CURP ni NSS, y no modifica facturas ni pagos.
+**Mayito** (la mascota de Mayalink, imágenes en `app/mayito*.webp`) explica los módulos y procesos del ERP, consulta clientes, planes, facturas, tickets, inventario, prospectos y el catálogo de cuentas, y levanta tickets de soporte. No ve salarios, nómina, CURP ni NSS, y no modifica facturas ni pagos.
 
 Está disponible de tres formas, con el mismo prompt (`n8n/asistente.instrucciones.md`) y las mismas herramientas (definidas en `scripts/build.py`):
 
-1. **Dentro del ERP web** (activo): botón 💬 abajo a la derecha. Usa la misma clave de acceso que la app, sabe en qué módulo estás y recuerda la conversación hasta que presionas *Nueva*. Lo atiende el workflow "Mayalink · Asistente en el CRM" con los créditos de IA incluidos en n8n. En modo demostración no está disponible.
+1. **Dentro del ERP web** (activo): botón con la cara de Mayito abajo a la derecha. Usa la misma clave de acceso que la app, sabe en qué módulo estás y recuerda la conversación hasta que presionas *Nueva*. Lo atiende el workflow "Mayalink · Asistente en el CRM" con los créditos de IA incluidos en n8n. En modo demostración no está disponible.
 2. **Agente de n8n** "Asistente Mayalink": para chatear desde n8n. Necesita una credencial de Anthropic (Claude Sonnet 5.5).
 3. **Workflow "Mayalink · Asistente por WhatsApp"** (en pausa): los empleados escriben al número de WhatsApp Business. Solo contesta a teléfonos registrados en RRHH > Empleados con estado *activo* (compara los últimos 10 dígitos); a otros números les da un mensaje genérico. Recuerda los últimos 10 mensajes de cada empleado.
 

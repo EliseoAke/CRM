@@ -34,7 +34,7 @@ const memoria = memory({
 /*__HERRAMIENTAS__*/
 const asistente = node({
   type: '@n8n/n8n-nodes-langchain.agent', version: 3.1,
-  config: { name: 'Asistente Mayalink', onError: 'continueRegularOutput', parameters: {
+  config: { name: 'Mayito', onError: 'continueRegularOutput', parameters: {
       promptType: 'define',
       text: expr('[Escribe desde el ERP web, módulo: {{ $json.modulo }}]\n{{ $json.mensaje }}'),
       options: { systemMessage: '__INSTRUCCIONES__', maxIterations: 8 } },
