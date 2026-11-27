@@ -1,0 +1,741 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mayalink ERP</title>
+<script src="https://cdn.tailwindcss.com/3.4.5"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.1/dist/cdn.min.js"></script>
+<style>
+  [x-cloak]{display:none!important}
+  body{font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+  .tbl th{position:sticky;top:0;background:#f8fafc;z-index:1}
+  .chip{display:inline-block;padding:.1rem .5rem;border-radius:999px;font-size:.72rem;font-weight:600;white-space:nowrap}
+  .bar{height:.6rem;border-radius:.3rem}
+  @media print{.no-print{display:none!important}}
+</style>
+</head>
+<body class="bg-slate-100 text-slate-800">
+<div x-data="erp()" x-init="init()" x-cloak class="min-h-screen">
+
+  <!-- ============ LOGIN ============ -->
+  <div x-show="!ready" class="min-h-screen flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl shadow-lg w-full max-w-md p-8">
+      <div class="flex items-center gap-3 mb-6">
+        <div class="w-11 h-11 rounded-xl bg-teal-600 text-white grid place-items-center font-black text-xl">M</div>
+        <div><div class="text-xl font-bold">Mayalink ERP</div><div class="text-sm text-slate-500">CRM · Finanzas · Contabilidad · RRHH · Soporte</div></div>
+      </div>
+      <label class="block text-sm font-medium mb-1">URL de la API (n8n)</label>
+      <input x-model="cfg.api" class="w-full border rounded-lg px-3 py-2 mb-3 text-sm" placeholder="https://tu-n8n.com/webhook/mayalink/api">
+      <label class="block text-sm font-medium mb-1">Clave de acceso</label>
+      <input x-model="cfg.token" type="password" @keydown.enter="login()" class="w-full border rounded-lg px-3 py-2 mb-4 text-sm" placeholder="mlk_…">
+      <button @click="login()" class="w-full bg-teal-600 hover:bg-teal-700 text-white rounded-lg py-2.5 font-semibold" :disabled="busy" x-text="busy?'Conectando…':'Entrar'"></button>
+      <p class="text-red-600 text-sm mt-3" x-text="loginError"></p>
+      <div class="border-t mt-6 pt-4 text-center">
+        <button @click="startDemo()" class="text-teal-700 text-sm font-medium hover:underline">Probar en modo demostración (datos de ejemplo en este navegador)</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ APP ============ -->
+  <div x-show="ready" class="flex min-h-screen">
+    <!-- Sidebar -->
+    <aside class="no-print bg-slate-900 text-slate-200 w-60 shrink-0 hidden md:flex flex-col" :class="menuOpen && '!flex fixed inset-y-0 left-0 z-40'">
+      <div class="flex items-center gap-2 px-5 h-16 border-b border-slate-800">
+        <div class="w-8 h-8 rounded-lg bg-teal-500 text-white grid place-items-center font-black">M</div>
+        <div class="font-bold text-white">Mayalink ERP</div>
+      </div>
+      <nav class="flex-1 overflow-y-auto py-3">
+        <template x-for="m in modules" :key="m.id">
+          <button @click="go(m.id)" class="w-full flex items-center gap-3 px-5 py-2.5 text-sm text-left hover:bg-slate-800"
+                  :class="mod===m.id && 'bg-slate-800 text-white border-l-4 border-teal-400 !pl-4'">
+            <span class="w-5 text-center" x-text="m.icon"></span><span x-text="m.label"></span>
+          </button>
+        </template>
+      </nav>
+      <div class="px-5 py-3 text-xs text-slate-400 border-t border-slate-800">
+        <div x-show="cfg.demo" class="text-amber-300 font-semibold">Modo demostración</div>
+        <div x-show="!cfg.demo">Conectado a n8n</div>
+        <button @click="logout()" class="mt-1 hover:text-white">Cerrar sesión</button>
+      </div>
+    </aside>
+    <div x-show="menuOpen" @click="menuOpen=false" class="fixed inset-0 bg-black/40 z-30 md:hidden"></div>
+
+    <main class="flex-1 min-w-0">
+      <header class="no-print bg-white border-b h-16 flex items-center gap-3 px-4 md:px-6 sticky top-0 z-20">
+        <button class="md:hidden text-2xl" @click="menuOpen=true">☰</button>
+        <h1 class="text-lg font-bold flex-1 truncate" x-text="curModule().label"></h1>
+        <span x-show="busy" class="text-xs text-slate-500">Guardando…</span>
+        <button @click="loadAll()" class="text-sm border rounded-lg px-3 py-1.5 hover:bg-slate-50" title="Recargar datos">↻ Actualizar</button>
+      </header>
+
+      <div class="p-4 md:p-6 flex flex-col gap-5">
+
+        <!-- ======== PESTAÑAS DEL MÓDULO ======== -->
+        <template x-if="curModule().tabs && curModule().tabs.length>1">
+          <div class="flex flex-wrap gap-1 no-print">
+            <template x-for="t in curModule().tabs" :key="t">
+              <button @click="tab=t" class="px-4 py-2 text-sm rounded-lg" :class="tab===t?'bg-teal-600 text-white':'bg-white hover:bg-slate-50 border'" x-text="tabLabel(t)"></button>
+            </template>
+          </div>
+        </template>
+
+        <!-- ======== TABLERO ======== -->
+        <template x-if="mod==='tablero'">
+          <div class="space-y-5">
+            <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+              <template x-for="k in kpis()" :key="k.l">
+                <div class="bg-white rounded-xl shadow-sm p-4">
+                  <div class="text-xs uppercase tracking-wide text-slate-500" x-text="k.l"></div>
+                  <div class="text-2xl font-bold mt-1" :class="k.c||''" x-text="k.v"></div>
+                  <div class="text-xs text-slate-500 mt-1" x-text="k.s||''"></div>
+                </div>
+              </template>
+            </div>
+            <div class="grid lg:grid-cols-2 gap-5">
+              <div class="bg-white rounded-xl shadow-sm p-5">
+                <div class="font-semibold mb-3">Ingresos vs egresos (últimos 6 meses)</div>
+                <template x-for="r in flujoMensual()" :key="r.mes">
+                  <div class="mb-3">
+                    <div class="flex justify-between text-xs mb-1"><span x-text="r.mes"></span><span><span class="text-emerald-700" x-text="money(r.ing)"></span> · <span class="text-rose-700" x-text="money(r.egr)"></span></span></div>
+                    <div class="bar bg-emerald-500 mb-0.5" :style="'width:'+pct(r.ing,r.max)+'%'"></div>
+                    <div class="bar bg-rose-400" :style="'width:'+pct(r.egr,r.max)+'%'"></div>
+                  </div>
+                </template>
+              </div>
+              <div class="bg-white rounded-xl shadow-sm p-5">
+                <div class="font-semibold mb-3">Clientes por plan</div>
+                <template x-for="r in clientesPorPlan()" :key="r.plan">
+                  <div class="mb-3">
+                    <div class="flex justify-between text-xs mb-1"><span x-text="r.plan"></span><span x-text="r.n+' clientes · '+money(r.mrr)+'/mes'"></span></div>
+                    <div class="bar bg-teal-500" :style="'width:'+pct(r.n,r.max)+'%'"></div>
+                  </div>
+                </template>
+                <div x-show="!clientesPorPlan().length" class="text-sm text-slate-500">Aún no hay clientes activos.</div>
+              </div>
+              <div class="bg-white rounded-xl shadow-sm p-5">
+                <div class="flex justify-between mb-3"><span class="font-semibold">Facturas vencidas</span><button class="text-sm text-teal-700" @click="go('facturas')">Ver todas →</button></div>
+                <template x-for="f in (db.facturas||[]).filter(x=>x.estado==='vencida').slice(0,8)" :key="f.id">
+                  <div class="flex justify-between text-sm py-1.5 border-b last:border-0"><span x-text="refName('clientes',f.cliente_id)"></span><span class="font-medium text-rose-700" x-text="money(f.total)"></span></div>
+                </template>
+                <div x-show="!(db.facturas||[]).some(x=>x.estado==='vencida')" class="text-sm text-slate-500">Sin facturas vencidas 🎉</div>
+              </div>
+              <div class="bg-white rounded-xl shadow-sm p-5">
+                <div class="flex justify-between mb-3"><span class="font-semibold">Tickets abiertos</span><button class="text-sm text-teal-700" @click="go('soporte')">Ver todos →</button></div>
+                <template x-for="t in ticketsAbiertos().slice(0,8)" :key="t.id">
+                  <div class="flex justify-between items-center text-sm py-1.5 border-b last:border-0 gap-2"><span class="truncate" x-text="(t.folio||'')+' · '+t.asunto"></span><span class="chip" :class="chipClass('prioridad',t.prioridad)" x-text="t.prioridad"></span></div>
+                </template>
+                <div x-show="!ticketsAbiertos().length" class="text-sm text-slate-500">Sin tickets abiertos.</div>
+              </div>
+            </div>
+          </div>
+        </template>
+
+        <!-- ======== CRM KANBAN ======== -->
+        <template x-if="mod==='crm' && crmView==='kanban'">
+          <div>
+            <div class="flex flex-wrap gap-2 mb-4">
+              <button @click="openForm('prospectos')" class="bg-teal-600 text-white rounded-lg px-4 py-2 text-sm font-semibold">+ Nuevo prospecto</button>
+              <button @click="crmView='lista'" class="border rounded-lg px-4 py-2 text-sm bg-white">Ver como lista</button>
+              <div class="text-sm text-slate-500 self-center ml-auto">Pipeline abierto: <b x-text="money(pipelineValor())"></b>/mes</div>
+            </div>
+            <div class="flex gap-4 overflow-x-auto pb-4">
+              <template x-for="et in field('prospectos','etapa').op" :key="et">
+                <div class="bg-slate-200/70 rounded-xl p-3 w-72 shrink-0">
+                  <div class="flex justify-between text-sm font-semibold mb-2"><span x-text="label(et)"></span><span class="text-slate-500" x-text="(db.prospectos||[]).filter(p=>p.etapa===et).length"></span></div>
+                  <template x-for="p in (db.prospectos||[]).filter(p=>p.etapa===et)" :key="p.id">
+                    <div class="bg-white rounded-lg shadow-sm p-3 mb-2 text-sm">
+                      <div class="font-semibold cursor-pointer hover:text-teal-700" @click="openForm('prospectos',p)" x-text="p.nombre"></div>
+                      <div class="text-xs text-slate-500" x-text="[p.zona,p.telefono].filter(Boolean).join(' · ')"></div>
+                      <div class="text-xs mt-1" x-show="p.plan_id" x-text="refName('planes',p.plan_id)"></div>
+                      <div class="flex gap-1 mt-2">
+                        <button class="text-xs border rounded px-2 py-0.5" @click="moverEtapa(p,-1)">←</button>
+                        <button class="text-xs border rounded px-2 py-0.5" @click="moverEtapa(p,1)">→</button>
+                        <button x-show="p.etapa!=='ganado'&&p.etapa!=='perdido'" class="text-xs bg-emerald-600 text-white rounded px-2 py-0.5 ml-auto" @click="convertirProspecto(p)">Convertir en cliente</button>
+                      </div>
+                    </div>
+                  </template>
+                </div>
+              </template>
+            </div>
+          </div>
+        </template>
+
+        <!-- ======== FINANZAS RESUMEN ======== -->
+        <template x-if="mod==='finanzas' && tab==='resumen'">
+          <div class="space-y-5">
+            <div class="flex items-center gap-2"><label class="text-sm">Mes:</label><input type="month" x-model="mes" class="border rounded-lg px-2 py-1 text-sm bg-white"></div>
+            <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+              <template x-for="k in finKpis()" :key="k.l">
+                <div class="bg-white rounded-xl shadow-sm p-4"><div class="text-xs uppercase text-slate-500" x-text="k.l"></div><div class="text-2xl font-bold" :class="k.c" x-text="k.v"></div></div>
+              </template>
+            </div>
+            <div class="grid lg:grid-cols-2 gap-5">
+              <template x-for="tipo in ['ingreso','egreso']" :key="tipo">
+                <div class="bg-white rounded-xl shadow-sm p-5">
+                  <div class="font-semibold mb-3" x-text="tipo==='ingreso'?'Ingresos por categoría':'Egresos por categoría'"></div>
+                  <template x-for="r in porCategoria(tipo)" :key="r.cat">
+                    <div class="mb-2"><div class="flex justify-between text-xs mb-1"><span x-text="label(r.cat)"></span><span x-text="money(r.v)"></span></div>
+                    <div class="bar" :class="tipo==='ingreso'?'bg-emerald-500':'bg-rose-400'" :style="'width:'+pct(r.v,r.max)+'%'"></div></div>
+                  </template>
+                  <div x-show="!porCategoria(tipo).length" class="text-sm text-slate-500">Sin movimientos este mes.</div>
+                </div>
+              </template>
+            </div>
+          </div>
+        </template>
+
+        <!-- ======== CONTABILIDAD: BALANZA / RESULTADOS ======== -->
+        <template x-if="mod==='contabilidad' && (tab==='balanza'||tab==='resultados')">
+          <div class="space-y-4">
+            <div class="flex items-center gap-2 no-print"><label class="text-sm">Periodo:</label><input type="month" x-model="mes" class="border rounded-lg px-2 py-1 text-sm bg-white">
+              <label class="text-sm flex items-center gap-1"><input type="checkbox" x-model="acumulado"> Acumulado (todo el historial hasta el mes)</label>
+              <button onclick="window.print()" class="ml-auto border rounded-lg px-3 py-1.5 text-sm bg-white">Imprimir</button></div>
+            <div x-show="tab==='balanza'" class="bg-white rounded-xl shadow-sm overflow-x-auto">
+              <table class="tbl w-full text-sm">
+                <thead><tr class="text-left text-slate-500"><th class="p-3">Cuenta</th><th class="p-3">Nombre</th><th class="p-3 text-right">Cargos</th><th class="p-3 text-right">Abonos</th><th class="p-3 text-right">Saldo</th></tr></thead>
+                <tbody>
+                  <template x-for="r in balanza()" :key="r.codigo">
+                    <tr class="border-t"><td class="p-3 font-mono" x-text="r.codigo"></td><td class="p-3" x-text="r.nombre"></td><td class="p-3 text-right" x-text="money(r.cargos)"></td><td class="p-3 text-right" x-text="money(r.abonos)"></td><td class="p-3 text-right font-semibold" x-text="money(r.saldo)"></td></tr>
+                  </template>
+                  <tr class="border-t-2 font-bold"><td class="p-3" colspan="2">Totales</td><td class="p-3 text-right" x-text="money(balanza().reduce((a,r)=>a+r.cargos,0))"></td><td class="p-3 text-right" x-text="money(balanza().reduce((a,r)=>a+r.abonos,0))"></td><td></td></tr>
+                </tbody>
+              </table>
+            </div>
+            <div x-show="tab==='resultados'" class="bg-white rounded-xl shadow-sm p-6 max-w-2xl">
+              <div class="text-center mb-4"><div class="font-bold text-lg">Mayalink · Estado de resultados</div><div class="text-sm text-slate-500" x-text="acumulado?('Acumulado al '+mes):('Periodo '+mes)"></div></div>
+              <template x-for="sec in resultados().secciones" :key="sec.t">
+                <div class="mb-4"><div class="font-semibold border-b pb-1 mb-1" x-text="sec.t"></div>
+                  <template x-for="r in sec.rows" :key="r.codigo"><div class="flex justify-between text-sm py-0.5"><span x-text="r.codigo+' '+r.nombre"></span><span x-text="money(r.saldo)"></span></div></template>
+                  <div class="flex justify-between font-semibold text-sm pt-1"><span x-text="'Total '+sec.t.toLowerCase()"></span><span x-text="money(sec.total)"></span></div></div>
+              </template>
+              <div class="flex justify-between text-lg font-bold border-t-2 pt-2" :class="resultados().utilidad>=0?'text-emerald-700':'text-rose-700'"><span>Utilidad (pérdida) del periodo</span><span x-text="money(resultados().utilidad)"></span></div>
+            </div>
+          </div>
+        </template>
+
+        <!-- ======== INVENTARIO RESUMEN ======== -->
+        <template x-if="mod==='inventario' && tab==='existencias'">
+          <div class="bg-white rounded-xl shadow-sm overflow-x-auto">
+            <table class="tbl w-full text-sm">
+              <thead><tr class="text-left text-slate-500"><th class="p-3">Tipo</th><th class="p-3">Marca / modelo</th><th class="p-3 text-right">En almacén</th><th class="p-3 text-right">Instalados</th><th class="p-3 text-right">Reparación / dañados</th><th class="p-3 text-right">Valor en almacén</th></tr></thead>
+              <tbody><template x-for="r in existencias()" :key="r.k">
+                <tr class="border-t"><td class="p-3" x-text="label(r.tipo)"></td><td class="p-3" x-text="r.modelo"></td><td class="p-3 text-right font-semibold" :class="r.almacen<=2&&'text-rose-700'" x-text="r.almacen"></td><td class="p-3 text-right" x-text="r.instalado"></td><td class="p-3 text-right" x-text="r.otros"></td><td class="p-3 text-right" x-text="money(r.valor)"></td></tr>
+              </template></tbody>
+            </table>
+            <div x-show="!existencias().length" class="p-6 text-sm text-slate-500">Sin equipos registrados.</div>
+          </div>
+        </template>
+
+        <!-- ======== CONFIG ======== -->
+        <template x-if="mod==='config'">
+          <div class="bg-white rounded-xl shadow-sm p-6 max-w-2xl space-y-4">
+            <div><div class="font-semibold">Conexión</div>
+              <div class="text-sm text-slate-600" x-text="cfg.demo?'Modo demostración: los datos viven solo en este navegador.':('API: '+cfg.api)"></div></div>
+            <div><div class="font-semibold mb-1">Respaldo</div>
+              <button @click="exportar()" class="border rounded-lg px-3 py-1.5 text-sm">Descargar respaldo (JSON)</button></div>
+            <div x-show="cfg.demo"><div class="font-semibold mb-1">Datos de demostración</div>
+              <button @click="resetDemo()" class="border rounded-lg px-3 py-1.5 text-sm text-rose-700">Reiniciar datos de ejemplo</button></div>
+            <div class="text-sm text-slate-600"><div class="font-semibold text-slate-800 mb-1">Automatizaciones en n8n</div>
+              <ul class="list-disc ml-5 space-y-1">
+                <li><b>Facturación mensual</b>: cada día genera la factura de los clientes activos cuyo día de corte ya llegó y aún no tienen factura del mes, con su póliza contable.</li>
+                <li><b>Cobranza</b>: cada día marca como vencidas las facturas que pasaron su fecha límite y suspende a los clientes con más días de atraso que la gracia configurada.</li>
+              </ul></div>
+          </div>
+        </template>
+
+        <!-- ======== TABS + GENERIC CRUD ======== -->
+        <template x-if="curModule().tabs && !(mod==='crm'&&crmView==='kanban')">
+          <div>
+
+            <template x-if="S.tablas[tab]">
+              <div class="bg-white rounded-xl shadow-sm">
+                <div class="flex flex-wrap items-center gap-2 p-3 border-b">
+                  <button @click="openForm(tab)" class="bg-teal-600 hover:bg-teal-700 text-white rounded-lg px-4 py-2 text-sm font-semibold">+ Nuevo</button>
+                  <template x-if="tab==='facturas'"><button @click="facturarMes()" class="border rounded-lg px-3 py-2 text-sm">⚡ Generar facturación del mes</button></template>
+                  <template x-if="tab==='nomina'"><button @click="generarNomina()" class="border rounded-lg px-3 py-2 text-sm">⚡ Generar nómina del mes</button></template>
+                  <template x-if="tab==='cuentas' && !(db.cuentas||[]).length"><button @click="cargarCatalogo()" class="border rounded-lg px-3 py-2 text-sm">Cargar catálogo base</button></template>
+                  <template x-if="tab==='prospectos'"><button @click="crmView='kanban'" class="border rounded-lg px-3 py-2 text-sm">Ver tablero</button></template>
+                  <input x-model="q" placeholder="Buscar…" class="border rounded-lg px-3 py-2 text-sm flex-1 min-w-[10rem]">
+                  <template x-if="filterField(tab)">
+                    <select x-model="fil" class="border rounded-lg px-2 py-2 text-sm">
+                      <option value="">Todos</option>
+                      <template x-for="o in filterField(tab).op.filter(Boolean)" :key="o"><option :value="o" x-text="label(o)"></option></template>
+                    </select>
+                  </template>
+                  <span class="text-xs text-slate-500" x-text="rows(tab).length+' registros'"></span>
+                </div>
+                <div class="overflow-x-auto max-h-[70vh]">
+                  <table class="tbl w-full text-sm">
+                    <thead><tr class="text-left text-slate-500">
+                      <th class="p-3">#</th>
+                      <template x-for="f in listFields(tab)" :key="f.n"><th class="p-3 cursor-pointer select-none whitespace-nowrap" :class="isNum(f)&&'text-right'" @click="sortBy(f.n)" x-text="f.l+(sort.k===f.n?(sort.d>0?' ▲':' ▼'):'')"></th></template>
+                      <th class="p-3"></th>
+                    </tr></thead>
+                    <tbody>
+                      <template x-for="r in rows(tab)" :key="tab+'-'+r.id">
+                        <tr class="border-t hover:bg-slate-50">
+                          <td class="p-3 text-slate-400" x-text="r.id"></td>
+                          <template x-for="f in listFields(tab)" :key="f.n">
+                            <td class="p-3" :class="isNum(f)&&'text-right whitespace-nowrap'">
+                              <template x-if="f.t==='select'"><span class="chip" :class="chipClass(f.n,r[f.n])" x-text="label(r[f.n])"></span></template>
+                              <template x-if="f.t!=='select'"><span x-text="fmt(f,r[f.n])"></span></template>
+                            </td>
+                          </template>
+                          <td class="p-3 whitespace-nowrap text-right">
+                            <template x-if="tab==='facturas' && ['pendiente','vencida'].includes(r.estado)"><button @click="cobrar(r)" class="text-xs bg-emerald-600 text-white rounded px-2 py-1 mr-1">Cobrar</button></template>
+                            <template x-if="tab==='facturas'"><button @click="recibo(r)" class="text-xs border rounded px-2 py-1 mr-1">Imprimir</button></template>
+                            <template x-if="tab==='clientes' && r.estado==='activo'"><button @click="facturarCliente(r)" class="text-xs border rounded px-2 py-1 mr-1">Facturar</button></template>
+                            <template x-if="tab==='clientes' && r.estado==='instalacion'"><button @click="activarCliente(r)" class="text-xs bg-emerald-600 text-white rounded px-2 py-1 mr-1">Activar</button></template>
+                            <template x-if="tab==='prospectos' && !['ganado','perdido'].includes(r.etapa)"><button @click="convertirProspecto(r)" class="text-xs bg-emerald-600 text-white rounded px-2 py-1 mr-1">Convertir</button></template>
+                            <template x-if="tab==='nomina' && r.estado!=='pagada'"><button @click="pagarNomina(r)" class="text-xs bg-emerald-600 text-white rounded px-2 py-1 mr-1">Pagar</button></template>
+                            <button @click="openForm(tab,r)" class="text-xs border rounded px-2 py-1">Editar</button>
+                          </td>
+                        </tr>
+                      </template>
+                    </tbody>
+                  </table>
+                  <div x-show="!rows(tab).length" class="p-8 text-center text-sm text-slate-500">No hay registros todavía.</div>
+                </div>
+              </div>
+            </template>
+          </div>
+        </template>
+      </div>
+    </main>
+  </div>
+
+  <!-- ============ FORM MODAL ============ -->
+  <div x-show="form.open" class="fixed inset-0 bg-black/40 z-50 flex items-start md:items-center justify-center p-4 overflow-y-auto" @keydown.escape.window="form.open=false">
+    <div class="bg-white rounded-2xl shadow-xl w-full max-w-2xl" @click.outside="form.open=false">
+      <div class="flex items-center justify-between px-6 py-4 border-b">
+        <div class="font-bold" x-text="(form.row.id?'Editar':'Nuevo')+' · '+(S.tablas[form.table]?.titulo||'')"></div>
+        <button @click="form.open=false" class="text-2xl leading-none text-slate-400">×</button>
+      </div>
+      <form @submit.prevent="save()" class="p-6 grid md:grid-cols-2 gap-4 max-h-[70vh] overflow-y-auto">
+        <template x-for="f in (S.tablas[form.table]?.campos||[])" :key="f.n">
+          <div :class="(f.t==='textarea')&&'md:col-span-2'">
+            <label class="block text-xs font-medium text-slate-600 mb-1" x-text="f.l+(f.req?' *':'')"></label>
+            <template x-if="f.t==='textarea'"><textarea x-model="form.row[f.n]" rows="2" class="w-full border rounded-lg px-3 py-2 text-sm"></textarea></template>
+            <template x-if="f.t==='select'"><select x-model="form.row[f.n]" class="w-full border rounded-lg px-3 py-2 text-sm"><template x-for="o in f.op" :key="o"><option :value="o" x-text="o?label(o):'—'" :selected="form.row[f.n]===o"></option></template></select></template>
+            <template x-if="f.t==='ref'"><select x-model="form.row[f.n]" class="w-full border rounded-lg px-3 py-2 text-sm"><option value="">—</option><template x-for="o in (db[f.ref]||[])" :key="o.id"><option :value="String(o.id)" x-text="refLabel(f.ref,o)" :selected="String(form.row[f.n])===String(o.id)"></option></template></select></template>
+            <template x-if="f.t==='cuenta'"><select x-model="form.row[f.n]" class="w-full border rounded-lg px-3 py-2 text-sm"><option value="">—</option><template x-for="o in cuentasOrdenadas()" :key="o.id"><option :value="o.codigo" x-text="o.codigo+' '+o.nombre" :selected="form.row[f.n]===o.codigo"></option></template></select></template>
+            <template x-if="f.t==='bool'"><label class="flex items-center gap-2 text-sm py-2"><input type="checkbox" x-model="form.row[f.n]"> Sí</label></template>
+            <template x-if="['text','email','tel','number','money','date'].includes(f.t)">
+              <input x-model="form.row[f.n]" :type="f.t==='money'?'number':(f.t==='tel'?'tel':f.t)" :step="f.t==='money'?'0.01':'any'" :required="f.req" class="w-full border rounded-lg px-3 py-2 text-sm">
+            </template>
+          </div>
+        </template>
+        <div class="md:col-span-2 flex items-center gap-2 pt-2">
+          <button type="submit" class="bg-teal-600 hover:bg-teal-700 text-white rounded-lg px-5 py-2 font-semibold text-sm" :disabled="busy">Guardar</button>
+          <button type="button" @click="form.open=false" class="border rounded-lg px-4 py-2 text-sm">Cancelar</button>
+          <button type="button" x-show="form.row.id" @click="remove()" class="ml-auto text-rose-700 text-sm hover:underline">Eliminar</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ============ COBRO MODAL ============ -->
+  <div x-show="pago.open" class="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6 space-y-3" @click.outside="pago.open=false">
+      <div class="font-bold">Registrar cobro</div>
+      <div class="text-sm" x-text="(pago.f?.folio||'')+' · '+refName('clientes',pago.f?.cliente_id)"></div>
+      <div class="text-2xl font-bold" x-text="money(pago.f?.total)"></div>
+      <label class="block text-xs font-medium">Método</label>
+      <select x-model="pago.metodo" class="w-full border rounded-lg px-3 py-2 text-sm"><template x-for="o in ['efectivo','transferencia','deposito','tarjeta','oxxo']" :key="o"><option :value="o" x-text="label(o)"></option></template></select>
+      <label class="block text-xs font-medium">Fecha</label>
+      <input type="date" x-model="pago.fecha" class="w-full border rounded-lg px-3 py-2 text-sm">
+      <div class="flex gap-2 pt-2"><button @click="confirmarCobro()" class="bg-emerald-600 text-white rounded-lg px-4 py-2 text-sm font-semibold" :disabled="busy">Confirmar cobro</button><button @click="pago.open=false" class="border rounded-lg px-4 py-2 text-sm">Cancelar</button></div>
+    </div>
+  </div>
+
+  <!-- ============ TOAST ============ -->
+  <div x-show="toast.msg" x-transition class="fixed bottom-5 right-5 z-[60] rounded-lg shadow-lg px-4 py-3 text-sm text-white max-w-sm" :class="toast.err?'bg-rose-600':'bg-slate-900'" x-text="toast.msg"></div>
+</div>
+
+<script>
+const SCHEMA = {"tablas": {"clientes": {"titulo": "Clientes / Suscriptores", "campos": [{"n": "nombre", "l": "Nombre completo", "t": "text", "req": true, "lista": true}, {"n": "telefono", "l": "Teléfono / WhatsApp", "t": "tel", "lista": true}, {"n": "email", "l": "Correo", "t": "email"}, {"n": "direccion", "l": "Dirección", "t": "textarea"}, {"n": "zona", "l": "Zona / Comunidad", "t": "text", "lista": true}, {"n": "rfc", "l": "RFC", "t": "text"}, {"n": "plan_id", "l": "Plan", "t": "ref", "ref": "planes", "lista": true}, {"n": "estado", "l": "Estado", "t": "select", "op": ["instalacion", "activo", "suspendido", "baja"], "def": "instalacion", "lista": true}, {"n": "fecha_alta", "l": "Fecha de alta", "t": "date", "def": "hoy"}, {"n": "dia_corte", "l": "Día de corte (1-28)", "t": "number", "def": 1, "lista": true}, {"n": "ip_asignada", "l": "IP asignada", "t": "text"}, {"n": "coordenadas", "l": "Coordenadas GPS", "t": "text"}, {"n": "notas", "l": "Notas", "t": "textarea"}]}, "planes": {"titulo": "Planes de internet", "campos": [{"n": "nombre", "l": "Nombre del plan", "t": "text", "req": true, "lista": true}, {"n": "tipo", "l": "Tipo", "t": "select", "op": ["residencial", "empresarial", "dedicado"], "def": "residencial", "lista": true}, {"n": "bajada_mbps", "l": "Bajada (Mbps)", "t": "number", "lista": true}, {"n": "subida_mbps", "l": "Subida (Mbps)", "t": "number", "lista": true}, {"n": "precio", "l": "Precio mensual (con IVA)", "t": "money", "req": true, "lista": true}, {"n": "costo_instalacion", "l": "Costo de instalación", "t": "money"}, {"n": "activo", "l": "Disponible para venta", "t": "bool", "def": true, "lista": true}]}, "prospectos": {"titulo": "CRM · Prospectos", "campos": [{"n": "nombre", "l": "Nombre", "t": "text", "req": true, "lista": true}, {"n": "telefono", "l": "Teléfono", "t": "tel", "lista": true}, {"n": "email", "l": "Correo", "t": "email"}, {"n": "zona", "l": "Zona", "t": "text", "lista": true}, {"n": "plan_id", "l": "Plan de interés", "t": "ref", "ref": "planes"}, {"n": "etapa", "l": "Etapa", "t": "select", "op": ["nuevo", "contactado", "visita_tecnica", "cotizado", "ganado", "perdido"], "def": "nuevo", "lista": true}, {"n": "origen", "l": "Origen", "t": "select", "op": ["facebook", "whatsapp", "recomendacion", "volante", "sitio_web", "otro"], "def": "whatsapp", "lista": true}, {"n": "valor_estimado", "l": "Valor mensual estimado", "t": "money", "lista": true}, {"n": "proximo_contacto", "l": "Próximo contacto", "t": "date"}, {"n": "notas", "l": "Notas", "t": "textarea"}]}, "facturas": {"titulo": "Facturación", "campos": [{"n": "folio", "l": "Folio", "t": "text", "lista": true}, {"n": "cliente_id", "l": "Cliente", "t": "ref", "ref": "clientes", "req": true, "lista": true}, {"n": "periodo", "l": "Periodo (AAAA-MM)", "t": "text", "lista": true}, {"n": "concepto", "l": "Concepto", "t": "text", "def": "Servicio de internet"}, {"n": "fecha_emision", "l": "Fecha de emisión", "t": "date", "def": "hoy"}, {"n": "fecha_vencimiento", "l": "Vence", "t": "date", "lista": true}, {"n": "subtotal", "l": "Subtotal", "t": "money"}, {"n": "iva", "l": "IVA", "t": "money"}, {"n": "total", "l": "Total", "t": "money", "req": true, "lista": true}, {"n": "estado", "l": "Estado", "t": "select", "op": ["pendiente", "pagada", "vencida", "cancelada"], "def": "pendiente", "lista": true}, {"n": "fecha_pago", "l": "Fecha de pago", "t": "date"}, {"n": "metodo_pago", "l": "Método de pago", "t": "select", "op": ["", "efectivo", "transferencia", "deposito", "tarjeta", "oxxo"]}]}, "movimientos": {"titulo": "Finanzas · Ingresos y egresos", "campos": [{"n": "fecha", "l": "Fecha", "t": "date", "def": "hoy", "lista": true}, {"n": "tipo", "l": "Tipo", "t": "select", "op": ["ingreso", "egreso"], "def": "egreso", "lista": true}, {"n": "categoria", "l": "Categoría", "t": "select", "op": ["cobro_servicio", "instalacion", "venta_equipo", "otros_ingresos", "proveedor_internet", "equipo", "nomina", "renta", "luz", "combustible", "impuestos", "mantenimiento", "otros_gastos"], "lista": true}, {"n": "descripcion", "l": "Descripción", "t": "text", "lista": true}, {"n": "monto", "l": "Monto", "t": "money", "req": true, "lista": true}, {"n": "cuenta", "l": "Cuenta", "t": "select", "op": ["caja", "banco"], "def": "banco", "lista": true}, {"n": "referencia", "l": "Referencia", "t": "text"}]}, "cuentas": {"titulo": "Contabilidad · Catálogo de cuentas", "campos": [{"n": "codigo", "l": "Código", "t": "text", "req": true, "lista": true}, {"n": "nombre", "l": "Nombre", "t": "text", "req": true, "lista": true}, {"n": "tipo", "l": "Tipo", "t": "select", "op": ["activo", "pasivo", "capital", "ingreso", "gasto"], "lista": true}, {"n": "naturaleza", "l": "Naturaleza", "t": "select", "op": ["deudora", "acreedora"], "lista": true}]}, "asientos": {"titulo": "Contabilidad · Pólizas / asientos", "campos": [{"n": "fecha", "l": "Fecha", "t": "date", "def": "hoy", "lista": true}, {"n": "concepto", "l": "Concepto", "t": "text", "req": true, "lista": true}, {"n": "cuenta_cargo", "l": "Cuenta de cargo (debe)", "t": "cuenta", "req": true, "lista": true}, {"n": "cuenta_abono", "l": "Cuenta de abono (haber)", "t": "cuenta", "req": true, "lista": true}, {"n": "monto", "l": "Monto", "t": "money", "req": true, "lista": true}, {"n": "referencia", "l": "Referencia", "t": "text"}]}, "empleados": {"titulo": "RRHH · Empleados", "campos": [{"n": "nombre", "l": "Nombre completo", "t": "text", "req": true, "lista": true}, {"n": "puesto", "l": "Puesto", "t": "text", "lista": true}, {"n": "departamento", "l": "Departamento", "t": "select", "op": ["direccion", "tecnico", "soporte", "ventas", "administracion", "cobranza"], "lista": true}, {"n": "telefono", "l": "Teléfono", "t": "tel"}, {"n": "email", "l": "Correo", "t": "email"}, {"n": "fecha_ingreso", "l": "Fecha de ingreso", "t": "date", "def": "hoy"}, {"n": "salario_mensual", "l": "Salario mensual", "t": "money", "lista": true}, {"n": "curp", "l": "CURP", "t": "text"}, {"n": "nss", "l": "NSS", "t": "text"}, {"n": "estado", "l": "Estado", "t": "select", "op": ["activo", "vacaciones", "incapacidad", "baja"], "def": "activo", "lista": true}]}, "nomina": {"titulo": "RRHH · Nómina", "campos": [{"n": "periodo", "l": "Periodo", "t": "text", "req": true, "lista": true}, {"n": "empleado_id", "l": "Empleado", "t": "ref", "ref": "empleados", "req": true, "lista": true}, {"n": "salario_base", "l": "Salario base", "t": "money"}, {"n": "bonos", "l": "Bonos / comisiones", "t": "money"}, {"n": "deducciones", "l": "Deducciones", "t": "money"}, {"n": "neto", "l": "Neto a pagar", "t": "money", "lista": true}, {"n": "estado", "l": "Estado", "t": "select", "op": ["borrador", "pagada"], "def": "borrador", "lista": true}, {"n": "fecha_pago", "l": "Fecha de pago", "t": "date"}]}, "inventario": {"titulo": "Inventario · Equipos", "campos": [{"n": "tipo", "l": "Tipo", "t": "select", "op": ["router", "onu", "antena", "switch", "olt", "cable", "fuente", "otro"], "lista": true}, {"n": "marca", "l": "Marca", "t": "text", "lista": true}, {"n": "modelo", "l": "Modelo", "t": "text", "lista": true}, {"n": "serie", "l": "No. de serie", "t": "text", "lista": true}, {"n": "mac", "l": "MAC", "t": "text"}, {"n": "cantidad", "l": "Cantidad", "t": "number", "def": 1, "lista": true}, {"n": "estado", "l": "Estado", "t": "select", "op": ["almacen", "instalado", "en_reparacion", "danado", "baja"], "def": "almacen", "lista": true}, {"n": "cliente_id", "l": "Instalado en cliente", "t": "ref", "ref": "clientes"}, {"n": "ubicacion", "l": "Ubicación", "t": "text"}, {"n": "costo", "l": "Costo unitario", "t": "money"}, {"n": "fecha_compra", "l": "Fecha de compra", "t": "date"}]}, "tickets": {"titulo": "Soporte · Tickets", "campos": [{"n": "folio", "l": "Folio", "t": "text", "lista": true}, {"n": "cliente_id", "l": "Cliente", "t": "ref", "ref": "clientes", "lista": true}, {"n": "asunto", "l": "Asunto", "t": "text", "req": true, "lista": true}, {"n": "descripcion", "l": "Descripción", "t": "textarea"}, {"n": "categoria", "l": "Categoría", "t": "select", "op": ["sin_servicio", "lentitud", "intermitencia", "instalacion", "cambio_plan", "facturacion", "otro"], "lista": true}, {"n": "prioridad", "l": "Prioridad", "t": "select", "op": ["baja", "media", "alta", "urgente"], "def": "media", "lista": true}, {"n": "estado", "l": "Estado", "t": "select", "op": ["abierto", "en_proceso", "resuelto", "cerrado"], "def": "abierto", "lista": true}, {"n": "asignado_a", "l": "Técnico asignado", "t": "ref", "ref": "empleados", "lista": true}, {"n": "fecha_cierre", "l": "Fecha de cierre", "t": "date"}, {"n": "solucion", "l": "Solución", "t": "textarea"}]}}};
+
+const CATALOGO_BASE = [
+  ['101','Caja','activo','deudora'],['102','Bancos','activo','deudora'],['105','Clientes','activo','deudora'],
+  ['115','Inventario de equipos','activo','deudora'],['118','IVA acreditable','activo','deudora'],['151','Equipo de red y telecomunicaciones','activo','deudora'],
+  ['201','Proveedores','pasivo','acreedora'],['208','IVA trasladado','pasivo','acreedora'],['210','Sueldos por pagar','pasivo','acreedora'],
+  ['301','Capital social','capital','acreedora'],['302','Resultados de ejercicios anteriores','capital','acreedora'],
+  ['401','Ingresos por servicio de internet','ingreso','acreedora'],['402','Ingresos por instalación','ingreso','acreedora'],['403','Otros ingresos','ingreso','acreedora'],
+  ['501','Costo de enlace / proveedor de internet','gasto','deudora'],['601','Sueldos y salarios','gasto','deudora'],['602','Renta','gasto','deudora'],
+  ['603','Energía eléctrica','gasto','deudora'],['604','Combustibles y viáticos','gasto','deudora'],['605','Mantenimiento','gasto','deudora'],
+  ['606','Impuestos y derechos','gasto','deudora'],['699','Otros gastos','gasto','deudora']
+].map(([codigo,nombre,tipo,naturaleza])=>({codigo,nombre,tipo,naturaleza}));
+
+// Regla contable por categoría de movimiento: cuenta contraria a Caja/Bancos.
+const CUENTA_CATEGORIA = {
+  cobro_servicio:'105', instalacion:'402', venta_equipo:'403', otros_ingresos:'403',
+  proveedor_internet:'501', equipo:'151', nomina:'601', renta:'602', luz:'603', combustible:'604',
+  impuestos:'606', mantenimiento:'605', otros_gastos:'699'
+};
+const IVA = 0.16, DIAS_PARA_PAGAR = 5;
+
+const LABELS = { instalacion:'En instalación', visita_tecnica:'Visita técnica', sin_servicio:'Sin servicio', cambio_plan:'Cambio de plan',
+  en_proceso:'En proceso', en_reparacion:'En reparación', danado:'Dañado', almacen:'En almacén', cobro_servicio:'Cobro de servicio',
+  venta_equipo:'Venta de equipo', otros_ingresos:'Otros ingresos', proveedor_internet:'Proveedor de internet', otros_gastos:'Otros gastos',
+  sitio_web:'Sitio web', recomendacion:'Recomendación', deposito:'Depósito', direccion:'Dirección', tecnico:'Técnico', administracion:'Administración',
+  onu:'ONU', olt:'OLT', luz:'Luz' };
+
+const CHIP = {
+  activo:'bg-emerald-100 text-emerald-800', pagada:'bg-emerald-100 text-emerald-800', ganado:'bg-emerald-100 text-emerald-800', resuelto:'bg-emerald-100 text-emerald-800', ingreso:'bg-emerald-100 text-emerald-800', instalado:'bg-emerald-100 text-emerald-800',
+  suspendido:'bg-amber-100 text-amber-800', pendiente:'bg-amber-100 text-amber-800', en_proceso:'bg-amber-100 text-amber-800', alta:'bg-amber-100 text-amber-800', vacaciones:'bg-amber-100 text-amber-800', borrador:'bg-amber-100 text-amber-800', en_reparacion:'bg-amber-100 text-amber-800',
+  vencida:'bg-rose-100 text-rose-800', baja:'bg-slate-200 text-slate-600', perdido:'bg-slate-200 text-slate-600', cancelada:'bg-slate-200 text-slate-600', cerrado:'bg-slate-200 text-slate-600', urgente:'bg-rose-100 text-rose-800', egreso:'bg-rose-100 text-rose-800', danado:'bg-rose-100 text-rose-800', abierto:'bg-sky-100 text-sky-800',
+  instalacion:'bg-sky-100 text-sky-800', nuevo:'bg-sky-100 text-sky-800', almacen:'bg-sky-100 text-sky-800'
+};
+
+const MODULES = [
+  { id:'tablero', label:'Tablero', icon:'◧' },
+  { id:'crm', label:'CRM · Ventas', icon:'★', tabs:['prospectos'] },
+  { id:'clientes', label:'Clientes', icon:'☺', tabs:['clientes','planes'] },
+  { id:'facturas', label:'Facturación', icon:'$', tabs:['facturas'] },
+  { id:'finanzas', label:'Finanzas', icon:'↕', tabs:['resumen','movimientos'] },
+  { id:'contabilidad', label:'Contabilidad', icon:'Σ', tabs:['asientos','cuentas','balanza','resultados'] },
+  { id:'rrhh', label:'Recursos humanos', icon:'♟', tabs:['empleados','nomina'] },
+  { id:'inventario', label:'Inventario', icon:'▣', tabs:['inventario','existencias'] },
+  { id:'soporte', label:'Soporte técnico', icon:'✆', tabs:['tickets'] },
+  { id:'config', label:'Configuración', icon:'⚙' }
+];
+const TAB_LABELS = { resumen:'Resumen', balanza:'Balanza de comprobación', resultados:'Estado de resultados', existencias:'Existencias',
+  movimientos:'Movimientos', asientos:'Pólizas', cuentas:'Catálogo de cuentas', empleados:'Empleados', nomina:'Nómina', inventario:'Equipos', planes:'Planes', clientes:'Clientes', prospectos:'Prospectos', facturas:'Facturas', tickets:'Tickets' };
+
+const hoy = () => new Date().toLocaleDateString('en-CA');
+const mesActual = () => hoy().slice(0,7);
+const sumarDias = (iso, n) => { const d = new Date(iso+'T12:00:00'); d.setDate(d.getDate()+n); return d.toLocaleDateString('en-CA'); };
+const r2 = n => Math.round((Number(n)||0)*100)/100;
+
+function erp(){ return {
+  S: SCHEMA, modules: MODULES, mod:'tablero', tab:null, crmView:'kanban', menuOpen:false,
+  db:{}, ready:false, busy:false, loginError:'', q:'', fil:'', sort:{k:null,d:1}, mes: mesActual(), acumulado:false,
+  cfg:{ api:'', token:'', demo:false },
+  form:{ open:false, table:null, row:{} }, pago:{ open:false, f:null, metodo:'efectivo', fecha:hoy() }, toast:{ msg:'', err:false },
+
+  // ---------- arranque / sesión ----------
+  init(){
+    try { Object.assign(this.cfg, JSON.parse(localStorage.getItem('mayalink_cfg')||'{}')); } catch(e){}
+    if (!this.cfg.api && location.protocol.startsWith('http') && location.pathname.includes('/webhook')) {
+      this.cfg.api = location.origin + location.pathname.replace(/\/+$/,'') + '/api';
+    }
+    if (this.cfg.demo || this.cfg.token) this.loadAll().then(ok => { if (ok) this.ready = true; });
+    this.$watch('tab', () => { this.q=''; this.fil=''; this.sort={k:null,d:1}; });
+  },
+  saveCfg(){ try { localStorage.setItem('mayalink_cfg', JSON.stringify(this.cfg)); } catch(e){} },
+  async login(){
+    this.cfg.demo=false; this.loginError='';
+    if (!this.cfg.api || !this.cfg.token) { this.loginError='Escribe la URL de la API y la clave.'; return; }
+    const ok = await this.loadAll(true);
+    if (ok) { this.saveCfg(); this.ready=true; }
+  },
+  startDemo(){ this.cfg.demo=true; this.saveCfg(); if (!localStorage.getItem('mayalink_demo')) this.seedDemo(); this.loadAll().then(()=>this.ready=true); },
+  logout(){ this.cfg.token=''; this.cfg.demo=false; this.saveCfg(); this.ready=false; this.db={}; },
+  go(id){ this.mod=id; this.menuOpen=false; const m=this.curModule(); this.tab = m.tabs ? m.tabs[0] : null; if(id==='crm') this.crmView='kanban'; },
+  curModule(){ return this.modules.find(m=>m.id===this.mod) || this.modules[0]; },
+  tabLabel(t){ return TAB_LABELS[t] || t; },
+
+  // ---------- capa de datos: API n8n o demo local ----------
+  async api(action, table, id, data){
+    if (this.cfg.demo) return this.demoApi(action, table, id, data);
+    const res = await fetch(this.cfg.api, { method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ token:this.cfg.token, action, table, id, data }) });
+    let j = null; try { j = await res.json(); } catch(e) {}
+    if (!res.ok || !j || j.ok === false) throw new Error((j && j.error) || ('Error HTTP '+res.status));
+    return j;
+  },
+  async loadAll(fromLogin){
+    this.busy=true;
+    try {
+      const names = Object.keys(this.S.tablas);
+      const out = await Promise.all(names.map(t => this.api('list', t)));
+      const db = {}; names.forEach((t,i)=> db[t] = out[i].rows || []);
+      this.db = db; this.loginError='';
+      return true;
+    } catch(e) {
+      if (fromLogin) this.loginError = 'No se pudo conectar: '+e.message; else this.notify('Error al cargar: '+e.message, true);
+      return false;
+    } finally { this.busy=false; }
+  },
+  async create(table, data){ const j = await this.api('create', table, null, this.clean(table,data)); this.db[table].push(j.row); return j.row; },
+  async update(table, id, data){ const j = await this.api('update', table, id, this.clean(table,data)); const i=this.db[table].findIndex(r=>r.id===id); if(i>=0) this.db[table][i] = Object.assign({}, this.db[table][i], j.row||data); return this.db[table][i]; },
+  async del(table, id){ await this.api('delete', table, id); this.db[table] = this.db[table].filter(r=>r.id!==id); },
+  clean(table, data){
+    const o = {};
+    for (const f of this.S.tablas[table].campos) {
+      if (!(f.n in data)) continue;
+      let v = data[f.n];
+      if (['number','money','ref'].includes(f.t)) v = (v===''||v===null||v===undefined) ? null : Number(v);
+      else if (f.t==='bool') v = !!v;
+      else v = (v===null||v===undefined) ? '' : String(v);
+      o[f.n] = v;
+    }
+    return o;
+  },
+
+  // demo: misma interfaz que la API, guardada en localStorage
+  demoLoad(){ try { return JSON.parse(localStorage.getItem('mayalink_demo')||'{}'); } catch(e){ return {}; } },
+  demoApi(action, table, id, data){
+    const d = this.demoLoad(); d[table] = d[table] || []; const now = new Date().toISOString();
+    if (action==='list') return { ok:true, rows: d[table] };
+    if (action==='create') { const nid = d[table].reduce((m,r)=>Math.max(m,r.id),0)+1; const row = Object.assign({id:nid, createdAt:now, updatedAt:now}, data); d[table].push(row); localStorage.setItem('mayalink_demo', JSON.stringify(d)); return { ok:true, row }; }
+    if (action==='update') { const r = d[table].find(r=>r.id===id); Object.assign(r, data, {updatedAt:now}); localStorage.setItem('mayalink_demo', JSON.stringify(d)); return { ok:true, row:r }; }
+    if (action==='delete') { d[table] = d[table].filter(r=>r.id!==id); localStorage.setItem('mayalink_demo', JSON.stringify(d)); return { ok:true }; }
+  },
+  seedDemo(){
+    const d = {}; Object.keys(this.S.tablas).forEach(t=>d[t]=[]);
+    const add = (t, rows) => rows.forEach((r,i)=> d[t].push(Object.assign({ id:i+1 }, r)));
+    add('planes', [
+      {nombre:'Hogar 20', tipo:'residencial', bajada_mbps:20, subida_mbps:5, precio:349, costo_instalacion:500, activo:true},
+      {nombre:'Hogar 50', tipo:'residencial', bajada_mbps:50, subida_mbps:10, precio:499, costo_instalacion:500, activo:true},
+      {nombre:'Negocio 100', tipo:'empresarial', bajada_mbps:100, subida_mbps:30, precio:999, costo_instalacion:0, activo:true}]);
+    add('cuentas', CATALOGO_BASE);
+    const m = mesActual(), m1 = sumarDias(m+'-01',-1).slice(0,7);
+    add('clientes', [
+      {nombre:'María Chan Pech', telefono:'9991234567', zona:'Centro', plan_id:2, estado:'activo', fecha_alta:m1+'-03', dia_corte:5},
+      {nombre:'José Canul May', telefono:'9997654321', zona:'San Juan', plan_id:1, estado:'activo', fecha_alta:m1+'-10', dia_corte:10},
+      {nombre:'Abarrotes La Ceiba', telefono:'9995550000', zona:'Centro', plan_id:3, estado:'suspendido', fecha_alta:m1+'-01', dia_corte:1},
+      {nombre:'Lucía Ek Tun', telefono:'9991112233', zona:'Xcalak', plan_id:1, estado:'instalacion', fecha_alta:hoy(), dia_corte:15}]);
+    add('facturas', [
+      {folio:'F-0001', cliente_id:1, periodo:m1, concepto:'Servicio de internet Hogar 50', fecha_emision:m1+'-05', fecha_vencimiento:m1+'-10', subtotal:430.17, iva:68.83, total:499, estado:'pagada', fecha_pago:m1+'-07', metodo_pago:'transferencia'},
+      {folio:'F-0002', cliente_id:3, periodo:m1, concepto:'Servicio de internet Negocio 100', fecha_emision:m1+'-01', fecha_vencimiento:m1+'-06', subtotal:861.21, iva:137.79, total:999, estado:'vencida'},
+      {folio:'F-0003', cliente_id:2, periodo:m, concepto:'Servicio de internet Hogar 20', fecha_emision:m+'-01', fecha_vencimiento:sumarDias(m+'-01',DIAS_PARA_PAGAR), subtotal:300.86, iva:48.14, total:349, estado:'pendiente'}]);
+    add('movimientos', [
+      {fecha:m1+'-07', tipo:'ingreso', categoria:'cobro_servicio', descripcion:'Cobro F-0001', monto:499, cuenta:'banco', referencia:'F-0001'},
+      {fecha:m1+'-15', tipo:'egreso', categoria:'proveedor_internet', descripcion:'Enlace dedicado 300 Mbps', monto:4500, cuenta:'banco'},
+      {fecha:m+'-02', tipo:'egreso', categoria:'luz', descripcion:'CFE torre principal', monto:820, cuenta:'caja'}]);
+    add('asientos', [
+      {fecha:m1+'-05', concepto:'Factura F-0001', cuenta_cargo:'105', cuenta_abono:'401', monto:430.17, referencia:'F-0001'},
+      {fecha:m1+'-05', concepto:'IVA factura F-0001', cuenta_cargo:'105', cuenta_abono:'208', monto:68.83, referencia:'F-0001'},
+      {fecha:m1+'-07', concepto:'Cobro F-0001', cuenta_cargo:'102', cuenta_abono:'105', monto:499, referencia:'F-0001'},
+      {fecha:m1+'-15', concepto:'Enlace dedicado 300 Mbps', cuenta_cargo:'501', cuenta_abono:'102', monto:4500, referencia:'MOV-2'},
+      {fecha:m+'-02', concepto:'CFE torre principal', cuenta_cargo:'603', cuenta_abono:'101', monto:820, referencia:'MOV-3'}]);
+    add('prospectos', [
+      {nombre:'Pedro Uc', telefono:'9993334444', zona:'Xcalak', plan_id:2, etapa:'nuevo', origen:'facebook', valor_estimado:499},
+      {nombre:'Hotel Brisas', telefono:'9998887777', zona:'Costa', plan_id:3, etapa:'cotizado', origen:'recomendacion', valor_estimado:999},
+      {nombre:'Ana Poot', telefono:'9992221111', zona:'San Juan', plan_id:1, etapa:'visita_tecnica', origen:'whatsapp', valor_estimado:349}]);
+    add('empleados', [
+      {nombre:'Carlos Dzul', puesto:'Técnico instalador', departamento:'tecnico', fecha_ingreso:'2025-03-01', salario_mensual:9500, estado:'activo'},
+      {nombre:'Rosa Kú', puesto:'Atención a clientes y cobranza', departamento:'cobranza', fecha_ingreso:'2025-06-15', salario_mensual:8500, estado:'activo'}]);
+    add('inventario', [
+      {tipo:'router', marca:'TP-Link', modelo:'Archer C6', cantidad:12, estado:'almacen', costo:650},
+      {tipo:'antena', marca:'Ubiquiti', modelo:'LiteBeam 5AC', serie:'LB5-0001', cantidad:1, estado:'instalado', cliente_id:1, costo:1450},
+      {tipo:'onu', marca:'Huawei', modelo:'HG8145V5', cantidad:2, estado:'almacen', costo:480}]);
+    add('tickets', [
+      {folio:'T-0001', cliente_id:2, asunto:'Internet lento por las noches', categoria:'lentitud', prioridad:'media', estado:'abierto', asignado_a:1},
+      {folio:'T-0002', cliente_id:1, asunto:'Sin servicio desde ayer', categoria:'sin_servicio', prioridad:'urgente', estado:'en_proceso', asignado_a:1}]);
+    localStorage.setItem('mayalink_demo', JSON.stringify(d));
+  },
+  resetDemo(){ if(!confirm('¿Borrar los datos de demostración y volver a cargar los de ejemplo?')) return; this.seedDemo(); this.loadAll(); },
+
+  // ---------- utilidades de presentación ----------
+  money(n){ return (Number(n)||0).toLocaleString('es-MX',{style:'currency',currency:'MXN'}); },
+  pct(v,max){ return (max && v) ? Math.max(2, Math.round(v/max*100)) : 0; },
+  label(v){ if(v===null||v===undefined||v==='') return '—'; return LABELS[v] || (String(v).charAt(0).toUpperCase()+String(v).slice(1).replace(/_/g,' ')); },
+  chipClass(k,v){ return CHIP[v] || 'bg-slate-100 text-slate-700'; },
+  field(t,n){ return this.S.tablas[t].campos.find(f=>f.n===n); },
+  isNum(f){ return ['number','money'].includes(f.t); },
+  listFields(t){ return this.S.tablas[t].campos.filter(f=>f.lista); },
+  filterField(t){ return this.S.tablas[t].campos.find(f=>f.t==='select' && f.n==='estado') || this.S.tablas[t].campos.find(f=>f.t==='select' && f.lista); },
+  refLabel(t,o){ return o.nombre || [o.folio,o.marca,o.modelo].filter(Boolean).join(' ') || ('#'+o.id); },
+  refName(t,id){ if(id===null||id===undefined||id==='') return '—'; const o=(this.db[t]||[]).find(r=>String(r.id)===String(id)); return o ? this.refLabel(t,o) : '#'+id; },
+  cuentasOrdenadas(){ return [...(this.db.cuentas||[])].sort((a,b)=>String(a.codigo).localeCompare(String(b.codigo))); },
+  fmt(f,v){
+    if (f.t==='money') return this.money(v);
+    if (f.t==='ref') return this.refName(f.ref,v);
+    if (f.t==='bool') return v ? 'Sí' : 'No';
+    if (f.t==='cuenta') { const c=(this.db.cuentas||[]).find(c=>c.codigo===v); return c ? v+' '+c.nombre : (v||'—'); }
+    return (v===null||v===undefined||v==='') ? '—' : v;
+  },
+  sortBy(k){ this.sort = { k, d: this.sort.k===k ? -this.sort.d : 1 }; },
+  rows(t){
+    let rs = this.db[t] || [];
+    const ff = this.filterField(t);
+    if (this.fil && ff) rs = rs.filter(r=>r[ff.n]===this.fil);
+    if (this.q) { const q=this.q.toLowerCase(); const fs=this.S.tablas[t].campos;
+      rs = rs.filter(r => fs.some(f => String(this.fmt(f,r[f.n])).toLowerCase().includes(q))); }
+    const k=this.sort.k, d=this.sort.d;
+    return [...rs].sort((a,b)=> k ? ((a[k]??'')>(b[k]??'')?d:(a[k]??'')<(b[k]??'')?-d:0) : b.id-a.id);
+  },
+  notify(msg, err){ this.toast={msg,err:!!err}; clearTimeout(this._tt); this._tt=setTimeout(()=>this.toast.msg='', err?6000:3000); },
+  async run(fn, okMsg){ this.busy=true; try { const r = await fn(); if(okMsg) this.notify(okMsg); return r; } catch(e){ this.notify('Error: '+e.message, true); } finally { this.busy=false; } },
+  nextFolio(t, pre){ const n=(this.db[t]||[]).reduce((m,r)=>Math.max(m, parseInt(String(r.folio||'').replace(/\D/g,''))||0),0)+1; return pre+String(n).padStart(4,'0'); },
+
+  // ---------- formulario genérico ----------
+  openForm(table, row){
+    const r = {};
+    for (const f of this.S.tablas[table].campos) {
+      if (row) r[f.n] = (f.t==='ref' && row[f.n]!=null) ? String(row[f.n]) : (row[f.n] ?? '');
+      else r[f.n] = f.def==='hoy' ? hoy() : (f.def ?? (f.t==='bool'?false:''));
+    }
+    if (row) r.id = row.id;
+    if (!row && table==='facturas') { r.folio=this.nextFolio('facturas','F-'); r.periodo=mesActual(); r.fecha_vencimiento=sumarDias(hoy(),DIAS_PARA_PAGAR); }
+    if (!row && table==='tickets') r.folio=this.nextFolio('tickets','T-');
+    if (!row && table==='nomina') r.periodo=mesActual();
+    this.form = { open:true, table, row:r };
+  },
+  async save(){
+    const t=this.form.table, r={...this.form.row}, id=r.id; delete r.id;
+    for (const f of this.S.tablas[t].campos) if (f.req && (r[f.n]===''||r[f.n]===null)) return this.notify('Falta: '+f.l, true);
+    if (t==='facturas' && r.total && !r.subtotal) { r.subtotal=r2(r.total/(1+IVA)); r.iva=r2(r.total-r.subtotal); }
+    if (t==='nomina') r.neto = r2((+r.salario_base||0)+(+r.bonos||0)-(+r.deducciones||0));
+    if (t==='tickets' && ['resuelto','cerrado'].includes(r.estado) && !r.fecha_cierre) r.fecha_cierre=hoy();
+    await this.run(async ()=>{
+      if (id) await this.update(t,id,r);
+      else {
+        const row = await this.create(t,r);
+        if (t==='movimientos') await this.polizaMovimiento(row);
+        if (t==='facturas') await this.polizaFactura(row);
+      }
+      this.form.open=false;
+    }, 'Guardado');
+  },
+  async remove(){
+    if (!confirm('¿Eliminar este registro? No se puede deshacer.')) return;
+    await this.run(async()=>{ await this.del(this.form.table, this.form.row.id); this.form.open=false; }, 'Eliminado');
+  },
+
+  // ---------- contabilidad automática ----------
+  async polizaMovimiento(m){
+    const caja = m.cuenta==='caja' ? '101' : '102', contra = CUENTA_CATEGORIA[m.categoria] || (m.tipo==='ingreso'?'403':'699');
+    await this.create('asientos', { fecha:m.fecha, concepto:m.descripcion||this.label(m.categoria), referencia:m.referencia||('MOV-'+m.id),
+      cuenta_cargo: m.tipo==='ingreso'?caja:contra, cuenta_abono: m.tipo==='ingreso'?contra:caja, monto:m.monto });
+  },
+  async polizaFactura(f){
+    const sub = f.subtotal || r2(f.total/(1+IVA)), iva = f.iva ?? r2(f.total-sub);
+    await this.create('asientos', { fecha:f.fecha_emision||hoy(), concepto:'Factura '+f.folio, cuenta_cargo:'105', cuenta_abono:'401', monto:sub, referencia:f.folio });
+    if (iva) await this.create('asientos', { fecha:f.fecha_emision||hoy(), concepto:'IVA factura '+f.folio, cuenta_cargo:'105', cuenta_abono:'208', monto:iva, referencia:f.folio });
+  },
+  cargarCatalogo(){ this.run(async()=>{ for (const c of CATALOGO_BASE) await this.create('cuentas', c); }, 'Catálogo cargado'); },
+
+  // ---------- facturación y cobranza ----------
+  async emitirFactura(c){
+    const plan = (this.db.planes||[]).find(p=>p.id===c.plan_id);
+    if (!plan) throw new Error(c.nombre+' no tiene plan asignado');
+    const total = Number(plan.precio), subtotal = r2(total/(1+IVA));
+    const f = await this.create('facturas', { folio:this.nextFolio('facturas','F-'), cliente_id:c.id, periodo:mesActual(), concepto:'Servicio de internet '+plan.nombre,
+      fecha_emision:hoy(), fecha_vencimiento:sumarDias(hoy(),DIAS_PARA_PAGAR), subtotal, iva:r2(total-subtotal), total, estado:'pendiente', fecha_pago:'', metodo_pago:'' });
+    await this.polizaFactura(f); return f;
+  },
+  yaFacturado(c){ return (this.db.facturas||[]).some(f=>f.cliente_id===c.id && f.periodo===mesActual() && f.estado!=='cancelada'); },
+  facturarCliente(c){
+    if (this.yaFacturado(c) && !confirm(c.nombre+' ya tiene factura de este mes. ¿Emitir otra?')) return;
+    this.run(()=>this.emitirFactura(c), 'Factura emitida');
+  },
+  facturarMes(){
+    const pend = (this.db.clientes||[]).filter(c=>c.estado==='activo' && !this.yaFacturado(c));
+    if (!pend.length) return this.notify('Todos los clientes activos ya tienen factura de '+mesActual());
+    if (!confirm('Se emitirán '+pend.length+' facturas del periodo '+mesActual()+'. ¿Continuar?')) return;
+    this.run(async()=>{ for (const c of pend) await this.emitirFactura(c); }, pend.length+' facturas emitidas');
+  },
+  cobrar(f){ this.pago = { open:true, f, metodo:'efectivo', fecha:hoy() }; },
+  async confirmarCobro(){
+    const f=this.pago.f, p=this.pago;
+    await this.run(async()=>{
+      await this.update('facturas', f.id, { estado:'pagada', fecha_pago:p.fecha, metodo_pago:p.metodo });
+      const mov = await this.create('movimientos', { fecha:p.fecha, tipo:'ingreso', categoria:'cobro_servicio', descripcion:'Cobro '+f.folio+' · '+this.refName('clientes',f.cliente_id),
+        monto:f.total, cuenta:p.metodo==='efectivo'?'caja':'banco', referencia:f.folio });
+      await this.polizaMovimiento(mov);
+      const c = (this.db.clientes||[]).find(c=>c.id===f.cliente_id);
+      if (c && c.estado==='suspendido' && !(this.db.facturas||[]).some(x=>x.cliente_id===c.id && x.estado==='vencida'))
+        { await this.update('clientes', c.id, { estado:'activo' }); this.notify('Cliente reactivado'); }
+      this.pago.open=false;
+    }, 'Cobro registrado');
+  },
+  activarCliente(c){ this.run(()=>this.update('clientes', c.id, { estado:'activo', fecha_alta: c.fecha_alta||hoy() }), c.nombre+' activado'); },
+  recibo(f){
+    const c=(this.db.clientes||[]).find(c=>c.id===f.cliente_id)||{};
+    const w=window.open('','_blank'); if(!w) return;
+    const esc=s=>String(s??'').replace(/[&<>"]/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[ch]));
+    w.document.write('<html><head><meta charset="utf-8"><title>'+esc(f.folio)+'</title><style>body{font-family:system-ui;max-width:640px;margin:40px auto;color:#222}td{padding:6px 0}.r{text-align:right}h1{margin:0}</style></head><body>'
+      +'<h1>Mayalink</h1><div>Proveedor de servicios de internet</div><hr><h2>'+(f.estado==='pagada'?'Recibo de pago':'Aviso de cobro')+' '+esc(f.folio)+'</h2>'
+      +'<table style="width:100%"><tr><td>Cliente</td><td class="r">'+esc(c.nombre)+'</td></tr><tr><td>Dirección</td><td class="r">'+esc(c.direccion)+'</td></tr>'
+      +'<tr><td>Periodo</td><td class="r">'+esc(f.periodo)+'</td></tr><tr><td>Concepto</td><td class="r">'+esc(f.concepto)+'</td></tr>'
+      +'<tr><td>Subtotal</td><td class="r">'+this.money(f.subtotal)+'</td></tr><tr><td>IVA 16%</td><td class="r">'+this.money(f.iva)+'</td></tr>'
+      +'<tr><td><b>Total</b></td><td class="r"><b>'+this.money(f.total)+'</b></td></tr><tr><td>Vence</td><td class="r">'+esc(f.fecha_vencimiento)+'</td></tr>'
+      +(f.estado==='pagada'?'<tr><td>Pagado el</td><td class="r">'+esc(f.fecha_pago)+' ('+esc(f.metodo_pago)+')</td></tr>':'')
+      +'</table><p style="margin-top:40px;font-size:12px;color:#666">Gracias por su preferencia.</p><script>window.print()<\/script></body></html>');
+    w.document.close();
+  },
+
+  // ---------- CRM ----------
+  moverEtapa(p, d){ const ops=this.field('prospectos','etapa').op; const i=Math.min(ops.length-1, Math.max(0, ops.indexOf(p.etapa)+d)); if(ops[i]!==p.etapa) this.run(()=>this.update('prospectos', p.id, { etapa:ops[i] })); },
+  pipelineValor(){ return (this.db.prospectos||[]).filter(p=>!['ganado','perdido'].includes(p.etapa)).reduce((a,p)=>a+(+p.valor_estimado||0),0); },
+  convertirProspecto(p){
+    if (!confirm('¿Crear cliente "'+p.nombre+'" a partir de este prospecto?')) return;
+    this.run(async()=>{
+      await this.create('clientes', { nombre:p.nombre, telefono:p.telefono, email:p.email, zona:p.zona, plan_id:p.plan_id, estado:'instalacion',
+        fecha_alta:hoy(), dia_corte:Math.min(28,new Date().getDate()), notas:p.notas||'' });
+      await this.update('prospectos', p.id, { etapa:'ganado' });
+    }, 'Cliente creado. Queda "En instalación" hasta activarlo.');
+  },
+
+  // ---------- RRHH ----------
+  generarNomina(){
+    const per=mesActual(), emps=(this.db.empleados||[]).filter(e=>e.estado!=='baja' && !(this.db.nomina||[]).some(n=>n.empleado_id===e.id && n.periodo===per));
+    if (!emps.length) return this.notify('La nómina de '+per+' ya está generada');
+    this.run(async()=>{ for (const e of emps) await this.create('nomina', { periodo:per, empleado_id:e.id, salario_base:e.salario_mensual||0, bonos:0, deducciones:0, neto:e.salario_mensual||0, estado:'borrador', fecha_pago:'' }); }, emps.length+' recibos de nómina generados');
+  },
+  pagarNomina(n){
+    if (!confirm('¿Registrar el pago de '+this.money(n.neto)+' a '+this.refName('empleados',n.empleado_id)+'?')) return;
+    this.run(async()=>{
+      await this.update('nomina', n.id, { estado:'pagada', fecha_pago:hoy() });
+      const mov = await this.create('movimientos', { fecha:hoy(), tipo:'egreso', categoria:'nomina', descripcion:'Nómina '+n.periodo+' · '+this.refName('empleados',n.empleado_id), monto:n.neto, cuenta:'banco', referencia:'NOM-'+n.id });
+      await this.polizaMovimiento(mov);
+    }, 'Pago de nómina registrado');
+  },
+
+  // ---------- indicadores ----------
+  mrr(){ return (this.db.clientes||[]).filter(c=>c.estado==='activo').reduce((a,c)=>a+(+((this.db.planes||[]).find(p=>p.id===c.plan_id)||{}).precio||0),0); },
+  ticketsAbiertos(){ const o={urgente:0,alta:1,media:2,baja:3}; return (this.db.tickets||[]).filter(t=>['abierto','en_proceso'].includes(t.estado)).sort((a,b)=>(o[a.prioridad]??9)-(o[b.prioridad]??9)); },
+  movsMes(m){ return (this.db.movimientos||[]).filter(x=>String(x.fecha||'').startsWith(m)); },
+  kpis(){
+    const cl=this.db.clientes||[], fa=this.db.facturas||[], m=mesActual(), mv=this.movsMes(m);
+    const ing=mv.filter(x=>x.tipo==='ingreso').reduce((a,x)=>a+(+x.monto||0),0), egr=mv.filter(x=>x.tipo==='egreso').reduce((a,x)=>a+(+x.monto||0),0);
+    const porCobrar=fa.filter(f=>['pendiente','vencida'].includes(f.estado)), venc=fa.filter(f=>f.estado==='vencida');
+    return [
+      { l:'Clientes activos', v:cl.filter(c=>c.estado==='activo').length, s:cl.filter(c=>c.estado==='suspendido').length+' suspendidos · '+cl.filter(c=>c.estado==='instalacion').length+' por instalar' },
+      { l:'Ingreso recurrente (MRR)', v:this.money(this.mrr()), s:'Suma de planes de clientes activos' },
+      { l:'Por cobrar', v:this.money(porCobrar.reduce((a,f)=>a+(+f.total||0),0)), s:venc.length+' facturas vencidas', c: venc.length?'text-rose-700':'' },
+      { l:'Utilidad del mes', v:this.money(ing-egr), s:'Ingresos '+this.money(ing)+' · Egresos '+this.money(egr), c: ing-egr<0?'text-rose-700':'text-emerald-700' },
+      { l:'Tickets abiertos', v:this.ticketsAbiertos().length, s:this.ticketsAbiertos().filter(t=>t.prioridad==='urgente').length+' urgentes' },
+      { l:'Prospectos en proceso', v:(this.db.prospectos||[]).filter(p=>!['ganado','perdido'].includes(p.etapa)).length, s:this.money(this.pipelineValor())+'/mes potencial' },
+      { l:'Empleados activos', v:(this.db.empleados||[]).filter(e=>e.estado==='activo').length, s:'Nómina mensual '+this.money((this.db.empleados||[]).filter(e=>e.estado!=='baja').reduce((a,e)=>a+(+e.salario_mensual||0),0)) },
+      { l:'Equipos en almacén', v:(this.db.inventario||[]).filter(i=>i.estado==='almacen').reduce((a,i)=>a+(+i.cantidad||1),0), s:(this.db.inventario||[]).filter(i=>i.estado==='instalado').reduce((a,i)=>a+(+i.cantidad||1),0)+' instalados' }
+    ];
+  },
+  flujoMensual(){
+    const out=[]; let d=new Date(); d.setDate(1);
+    for (let i=0;i<6;i++){ const m=d.toLocaleDateString('en-CA').slice(0,7); const mv=this.movsMes(m);
+      out.unshift({ mes:m, ing:mv.filter(x=>x.tipo==='ingreso').reduce((a,x)=>a+(+x.monto||0),0), egr:mv.filter(x=>x.tipo==='egreso').reduce((a,x)=>a+(+x.monto||0),0) }); d.setMonth(d.getMonth()-1); }
+    const max=Math.max(1,...out.map(r=>Math.max(r.ing,r.egr))); out.forEach(r=>r.max=max); return out;
+  },
+  clientesPorPlan(){
+    const g={}; (this.db.clientes||[]).filter(c=>c.estado==='activo').forEach(c=>{ const p=(this.db.planes||[]).find(p=>p.id===c.plan_id); const k=p?p.nombre:'Sin plan'; g[k]=g[k]||{plan:k,n:0,mrr:0}; g[k].n++; g[k].mrr+=p?+p.precio:0; });
+    const rs=Object.values(g).sort((a,b)=>b.n-a.n); const max=Math.max(1,...rs.map(r=>r.n)); rs.forEach(r=>r.max=max); return rs;
+  },
+  finKpis(){ const mv=this.movsMes(this.mes); const ing=mv.filter(x=>x.tipo==='ingreso').reduce((a,x)=>a+(+x.monto||0),0), egr=mv.filter(x=>x.tipo==='egreso').reduce((a,x)=>a+(+x.monto||0),0);
+    const saldo=c=>(this.db.movimientos||[]).filter(x=>x.cuenta===c).reduce((a,x)=>a+(x.tipo==='ingreso'?1:-1)*(+x.monto||0),0);
+    return [ {l:'Ingresos',v:this.money(ing),c:'text-emerald-700'}, {l:'Egresos',v:this.money(egr),c:'text-rose-700'}, {l:'Resultado',v:this.money(ing-egr),c:ing-egr<0?'text-rose-700':''}, {l:'Saldo caja / banco',v:this.money(saldo('caja'))+' / '+this.money(saldo('banco')),c:'!text-base'} ]; },
+  porCategoria(tipo){ const g={}; this.movsMes(this.mes).filter(x=>x.tipo===tipo).forEach(x=>g[x.categoria]=(g[x.categoria]||0)+(+x.monto||0));
+    const rs=Object.entries(g).map(([cat,v])=>({cat,v})).sort((a,b)=>b.v-a.v); const max=Math.max(1,...rs.map(r=>r.v)); rs.forEach(r=>r.max=max); return rs; },
+  asientosPeriodo(){ return (this.db.asientos||[]).filter(a=> this.acumulado ? String(a.fecha||'').slice(0,7)<=this.mes : String(a.fecha||'').startsWith(this.mes)); },
+  balanza(){
+    const as=this.asientosPeriodo();
+    return this.cuentasOrdenadas().map(c=>{ const cargos=as.filter(a=>a.cuenta_cargo===c.codigo).reduce((s,a)=>s+(+a.monto||0),0), abonos=as.filter(a=>a.cuenta_abono===c.codigo).reduce((s,a)=>s+(+a.monto||0),0);
+      return { codigo:c.codigo, nombre:c.nombre, tipo:c.tipo, cargos, abonos, saldo: c.naturaleza==='acreedora' ? abonos-cargos : cargos-abonos }; }).filter(r=>r.cargos||r.abonos);
+  },
+  resultados(){
+    const b=this.balanza(); const ing=b.filter(r=>r.tipo==='ingreso'), gas=b.filter(r=>r.tipo==='gasto');
+    const ti=ing.reduce((a,r)=>a+r.saldo,0), tg=gas.reduce((a,r)=>a+r.saldo,0);
+    return { secciones:[{t:'Ingresos',rows:ing,total:ti},{t:'Gastos',rows:gas,total:tg}], utilidad:ti-tg };
+  },
+  existencias(){ const g={}; (this.db.inventario||[]).forEach(i=>{ const k=i.tipo+'|'+(i.marca||'')+' '+(i.modelo||''); g[k]=g[k]||{k,tipo:i.tipo,modelo:((i.marca||'')+' '+(i.modelo||'')).trim()||'—',almacen:0,instalado:0,otros:0,valor:0};
+    const q=+i.cantidad||1; if(i.estado==='almacen'){g[k].almacen+=q; g[k].valor+=q*(+i.costo||0);} else if(i.estado==='instalado') g[k].instalado+=q; else if(i.estado!=='baja') g[k].otros+=q; });
+    return Object.values(g).sort((a,b)=>String(a.tipo).localeCompare(String(b.tipo))); },
+  exportar(){ const blob=new Blob([JSON.stringify(this.db,null,2)],{type:'application/json'}); const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='mayalink-respaldo-'+hoy()+'.json'; a.click(); }
+}; }
+</script>
+</body>
+</html>

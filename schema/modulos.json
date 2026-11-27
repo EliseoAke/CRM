@@ -1,0 +1,787 @@
+{
+  "_descripcion": "Fuente única del modelo de datos de Mayalink ERP. Cada entrada de 'tablas' es una Data Table de n8n (prefijo ml_). Tipos de campo: text, textarea, email, tel, number, money, date, select, bool, ref. Las fechas se guardan como texto ISO (AAAA-MM-DD).",
+  "tablas": {
+    "clientes": {
+      "titulo": "Clientes / Suscriptores",
+      "campos": [
+        {
+          "n": "nombre",
+          "l": "Nombre completo",
+          "t": "text",
+          "req": true,
+          "lista": true
+        },
+        {
+          "n": "telefono",
+          "l": "Teléfono / WhatsApp",
+          "t": "tel",
+          "lista": true
+        },
+        {
+          "n": "email",
+          "l": "Correo",
+          "t": "email"
+        },
+        {
+          "n": "direccion",
+          "l": "Dirección",
+          "t": "textarea"
+        },
+        {
+          "n": "zona",
+          "l": "Zona / Comunidad",
+          "t": "text",
+          "lista": true
+        },
+        {
+          "n": "rfc",
+          "l": "RFC",
+          "t": "text"
+        },
+        {
+          "n": "plan_id",
+          "l": "Plan",
+          "t": "ref",
+          "ref": "planes",
+          "lista": true
+        },
+        {
+          "n": "estado",
+          "l": "Estado",
+          "t": "select",
+          "op": [
+            "instalacion",
+            "activo",
+            "suspendido",
+            "baja"
+          ],
+          "def": "instalacion",
+          "lista": true
+        },
+        {
+          "n": "fecha_alta",
+          "l": "Fecha de alta",
+          "t": "date",
+          "def": "hoy"
+        },
+        {
+          "n": "dia_corte",
+          "l": "Día de corte (1-28)",
+          "t": "number",
+          "def": 1,
+          "lista": true
+        },
+        {
+          "n": "ip_asignada",
+          "l": "IP asignada",
+          "t": "text"
+        },
+        {
+          "n": "coordenadas",
+          "l": "Coordenadas GPS",
+          "t": "text"
+        },
+        {
+          "n": "notas",
+          "l": "Notas",
+          "t": "textarea"
+        }
+      ]
+    },
+    "planes": {
+      "titulo": "Planes de internet",
+      "campos": [
+        {
+          "n": "nombre",
+          "l": "Nombre del plan",
+          "t": "text",
+          "req": true,
+          "lista": true
+        },
+        {
+          "n": "tipo",
+          "l": "Tipo",
+          "t": "select",
+          "op": [
+            "residencial",
+            "empresarial",
+            "dedicado"
+          ],
+          "def": "residencial",
+          "lista": true
+        },
+        {
+          "n": "bajada_mbps",
+          "l": "Bajada (Mbps)",
+          "t": "number",
+          "lista": true
+        },
+        {
+          "n": "subida_mbps",
+          "l": "Subida (Mbps)",
+          "t": "number",
+          "lista": true
+        },
+        {
+          "n": "precio",
+          "l": "Precio mensual (con IVA)",
+          "t": "money",
+          "req": true,
+          "lista": true
+        },
+        {
+          "n": "costo_instalacion",
+          "l": "Costo de instalación",
+          "t": "money"
+        },
+        {
+          "n": "activo",
+          "l": "Disponible para venta",
+          "t": "bool",
+          "def": true,
+          "lista": true
+        }
+      ]
+    },
+    "prospectos": {
+      "titulo": "CRM · Prospectos",
+      "campos": [
+        {
+          "n": "nombre",
+          "l": "Nombre",
+          "t": "text",
+          "req": true,
+          "lista": true
+        },
+        {
+          "n": "telefono",
+          "l": "Teléfono",
+          "t": "tel",
+          "lista": true
+        },
+        {
+          "n": "email",
+          "l": "Correo",
+          "t": "email"
+        },
+        {
+          "n": "zona",
+          "l": "Zona",
+          "t": "text",
+          "lista": true
+        },
+        {
+          "n": "plan_id",
+          "l": "Plan de interés",
+          "t": "ref",
+          "ref": "planes"
+        },
+        {
+          "n": "etapa",
+          "l": "Etapa",
+          "t": "select",
+          "op": [
+            "nuevo",
+            "contactado",
+            "visita_tecnica",
+            "cotizado",
+            "ganado",
+            "perdido"
+          ],
+          "def": "nuevo",
+          "lista": true
+        },
+        {
+          "n": "origen",
+          "l": "Origen",
+          "t": "select",
+          "op": [
+            "facebook",
+            "whatsapp",
+            "recomendacion",
+            "volante",
+            "sitio_web",
+            "otro"
+          ],
+          "def": "whatsapp",
+          "lista": true
+        },
+        {
+          "n": "valor_estimado",
+          "l": "Valor mensual estimado",
+          "t": "money",
+          "lista": true
+        },
+        {
+          "n": "proximo_contacto",
+          "l": "Próximo contacto",
+          "t": "date"
+        },
+        {
+          "n": "notas",
+          "l": "Notas",
+          "t": "textarea"
+        }
+      ]
+    },
+    "facturas": {
+      "titulo": "Facturación",
+      "campos": [
+        {
+          "n": "folio",
+          "l": "Folio",
+          "t": "text",
+          "lista": true
+        },
+        {
+          "n": "cliente_id",
+          "l": "Cliente",
+          "t": "ref",
+          "ref": "clientes",
+          "req": true,
+          "lista": true
+        },
+        {
+          "n": "periodo",
+          "l": "Periodo (AAAA-MM)",
+          "t": "text",
+          "lista": true
+        },
+        {
+          "n": "concepto",
+          "l": "Concepto",
+          "t": "text",
+          "def": "Servicio de internet"
+        },
+        {
+          "n": "fecha_emision",
+          "l": "Fecha de emisión",
+          "t": "date",
+          "def": "hoy"
+        },
+        {
+          "n": "fecha_vencimiento",
+          "l": "Vence",
+          "t": "date",
+          "lista": true
+        },
+        {
+          "n": "subtotal",
+          "l": "Subtotal",
+          "t": "money"
+        },
+        {
+          "n": "iva",
+          "l": "IVA",
+          "t": "money"
+        },
+        {
+          "n": "total",
+          "l": "Total",
+          "t": "money",
+          "req": true,
+          "lista": true
+        },
+        {
+          "n": "estado",
+          "l": "Estado",
+          "t": "select",
+          "op": [
+            "pendiente",
+            "pagada",
+            "vencida",
+            "cancelada"
+          ],
+          "def": "pendiente",
+          "lista": true
+        },
+        {
+          "n": "fecha_pago",
+          "l": "Fecha de pago",
+          "t": "date"
+        },
+        {
+          "n": "metodo_pago",
+          "l": "Método de pago",
+          "t": "select",
+          "op": [
+            "",
+            "efectivo",
+            "transferencia",
+            "deposito",
+            "tarjeta",
+            "oxxo"
+          ]
+        }
+      ]
+    },
+    "movimientos": {
+      "titulo": "Finanzas · Ingresos y egresos",
+      "campos": [
+        {
+          "n": "fecha",
+          "l": "Fecha",
+          "t": "date",
+          "def": "hoy",
+          "lista": true
+        },
+        {
+          "n": "tipo",
+          "l": "Tipo",
+          "t": "select",
+          "op": [
+            "ingreso",
+            "egreso"
+          ],
+          "def": "egreso",
+          "lista": true
+        },
+        {
+          "n": "categoria",
+          "l": "Categoría",
+          "t": "select",
+          "op": [
+            "cobro_servicio",
+            "instalacion",
+            "venta_equipo",
+            "otros_ingresos",
+            "proveedor_internet",
+            "equipo",
+            "nomina",
+            "renta",
+            "luz",
+            "combustible",
+            "impuestos",
+            "mantenimiento",
+            "otros_gastos"
+          ],
+          "lista": true
+        },
+        {
+          "n": "descripcion",
+          "l": "Descripción",
+          "t": "text",
+          "lista": true
+        },
+        {
+          "n": "monto",
+          "l": "Monto",
+          "t": "money",
+          "req": true,
+          "lista": true
+        },
+        {
+          "n": "cuenta",
+          "l": "Cuenta",
+          "t": "select",
+          "op": [
+            "caja",
+            "banco"
+          ],
+          "def": "banco",
+          "lista": true
+        },
+        {
+          "n": "referencia",
+          "l": "Referencia",
+          "t": "text"
+        }
+      ]
+    },
+    "cuentas": {
+      "titulo": "Contabilidad · Catálogo de cuentas",
+      "campos": [
+        {
+          "n": "codigo",
+          "l": "Código",
+          "t": "text",
+          "req": true,
+          "lista": true
+        },
+        {
+          "n": "nombre",
+          "l": "Nombre",
+          "t": "text",
+          "req": true,
+          "lista": true
+        },
+        {
+          "n": "tipo",
+          "l": "Tipo",
+          "t": "select",
+          "op": [
+            "activo",
+            "pasivo",
+            "capital",
+            "ingreso",
+            "gasto"
+          ],
+          "lista": true
+        },
+        {
+          "n": "naturaleza",
+          "l": "Naturaleza",
+          "t": "select",
+          "op": [
+            "deudora",
+            "acreedora"
+          ],
+          "lista": true
+        }
+      ]
+    },
+    "asientos": {
+      "titulo": "Contabilidad · Pólizas / asientos",
+      "campos": [
+        {
+          "n": "fecha",
+          "l": "Fecha",
+          "t": "date",
+          "def": "hoy",
+          "lista": true
+        },
+        {
+          "n": "concepto",
+          "l": "Concepto",
+          "t": "text",
+          "req": true,
+          "lista": true
+        },
+        {
+          "n": "cuenta_cargo",
+          "l": "Cuenta de cargo (debe)",
+          "t": "cuenta",
+          "req": true,
+          "lista": true
+        },
+        {
+          "n": "cuenta_abono",
+          "l": "Cuenta de abono (haber)",
+          "t": "cuenta",
+          "req": true,
+          "lista": true
+        },
+        {
+          "n": "monto",
+          "l": "Monto",
+          "t": "money",
+          "req": true,
+          "lista": true
+        },
+        {
+          "n": "referencia",
+          "l": "Referencia",
+          "t": "text"
+        }
+      ]
+    },
+    "empleados": {
+      "titulo": "RRHH · Empleados",
+      "campos": [
+        {
+          "n": "nombre",
+          "l": "Nombre completo",
+          "t": "text",
+          "req": true,
+          "lista": true
+        },
+        {
+          "n": "puesto",
+          "l": "Puesto",
+          "t": "text",
+          "lista": true
+        },
+        {
+          "n": "departamento",
+          "l": "Departamento",
+          "t": "select",
+          "op": [
+            "direccion",
+            "tecnico",
+            "soporte",
+            "ventas",
+            "administracion",
+            "cobranza"
+          ],
+          "lista": true
+        },
+        {
+          "n": "telefono",
+          "l": "Teléfono",
+          "t": "tel"
+        },
+        {
+          "n": "email",
+          "l": "Correo",
+          "t": "email"
+        },
+        {
+          "n": "fecha_ingreso",
+          "l": "Fecha de ingreso",
+          "t": "date",
+          "def": "hoy"
+        },
+        {
+          "n": "salario_mensual",
+          "l": "Salario mensual",
+          "t": "money",
+          "lista": true
+        },
+        {
+          "n": "curp",
+          "l": "CURP",
+          "t": "text"
+        },
+        {
+          "n": "nss",
+          "l": "NSS",
+          "t": "text"
+        },
+        {
+          "n": "estado",
+          "l": "Estado",
+          "t": "select",
+          "op": [
+            "activo",
+            "vacaciones",
+            "incapacidad",
+            "baja"
+          ],
+          "def": "activo",
+          "lista": true
+        }
+      ]
+    },
+    "nomina": {
+      "titulo": "RRHH · Nómina",
+      "campos": [
+        {
+          "n": "periodo",
+          "l": "Periodo",
+          "t": "text",
+          "req": true,
+          "lista": true
+        },
+        {
+          "n": "empleado_id",
+          "l": "Empleado",
+          "t": "ref",
+          "ref": "empleados",
+          "req": true,
+          "lista": true
+        },
+        {
+          "n": "salario_base",
+          "l": "Salario base",
+          "t": "money"
+        },
+        {
+          "n": "bonos",
+          "l": "Bonos / comisiones",
+          "t": "money"
+        },
+        {
+          "n": "deducciones",
+          "l": "Deducciones",
+          "t": "money"
+        },
+        {
+          "n": "neto",
+          "l": "Neto a pagar",
+          "t": "money",
+          "lista": true
+        },
+        {
+          "n": "estado",
+          "l": "Estado",
+          "t": "select",
+          "op": [
+            "borrador",
+            "pagada"
+          ],
+          "def": "borrador",
+          "lista": true
+        },
+        {
+          "n": "fecha_pago",
+          "l": "Fecha de pago",
+          "t": "date"
+        }
+      ]
+    },
+    "inventario": {
+      "titulo": "Inventario · Equipos",
+      "campos": [
+        {
+          "n": "tipo",
+          "l": "Tipo",
+          "t": "select",
+          "op": [
+            "router",
+            "onu",
+            "antena",
+            "switch",
+            "olt",
+            "cable",
+            "fuente",
+            "otro"
+          ],
+          "lista": true
+        },
+        {
+          "n": "marca",
+          "l": "Marca",
+          "t": "text",
+          "lista": true
+        },
+        {
+          "n": "modelo",
+          "l": "Modelo",
+          "t": "text",
+          "lista": true
+        },
+        {
+          "n": "serie",
+          "l": "No. de serie",
+          "t": "text",
+          "lista": true
+        },
+        {
+          "n": "mac",
+          "l": "MAC",
+          "t": "text"
+        },
+        {
+          "n": "cantidad",
+          "l": "Cantidad",
+          "t": "number",
+          "def": 1,
+          "lista": true
+        },
+        {
+          "n": "estado",
+          "l": "Estado",
+          "t": "select",
+          "op": [
+            "almacen",
+            "instalado",
+            "en_reparacion",
+            "danado",
+            "baja"
+          ],
+          "def": "almacen",
+          "lista": true
+        },
+        {
+          "n": "cliente_id",
+          "l": "Instalado en cliente",
+          "t": "ref",
+          "ref": "clientes"
+        },
+        {
+          "n": "ubicacion",
+          "l": "Ubicación",
+          "t": "text"
+        },
+        {
+          "n": "costo",
+          "l": "Costo unitario",
+          "t": "money"
+        },
+        {
+          "n": "fecha_compra",
+          "l": "Fecha de compra",
+          "t": "date"
+        }
+      ]
+    },
+    "tickets": {
+      "titulo": "Soporte · Tickets",
+      "campos": [
+        {
+          "n": "folio",
+          "l": "Folio",
+          "t": "text",
+          "lista": true
+        },
+        {
+          "n": "cliente_id",
+          "l": "Cliente",
+          "t": "ref",
+          "ref": "clientes",
+          "lista": true
+        },
+        {
+          "n": "asunto",
+          "l": "Asunto",
+          "t": "text",
+          "req": true,
+          "lista": true
+        },
+        {
+          "n": "descripcion",
+          "l": "Descripción",
+          "t": "textarea"
+        },
+        {
+          "n": "categoria",
+          "l": "Categoría",
+          "t": "select",
+          "op": [
+            "sin_servicio",
+            "lentitud",
+            "intermitencia",
+            "instalacion",
+            "cambio_plan",
+            "facturacion",
+            "otro"
+          ],
+          "lista": true
+        },
+        {
+          "n": "prioridad",
+          "l": "Prioridad",
+          "t": "select",
+          "op": [
+            "baja",
+            "media",
+            "alta",
+            "urgente"
+          ],
+          "def": "media",
+          "lista": true
+        },
+        {
+          "n": "estado",
+          "l": "Estado",
+          "t": "select",
+          "op": [
+            "abierto",
+            "en_proceso",
+            "resuelto",
+            "cerrado"
+          ],
+          "def": "abierto",
+          "lista": true
+        },
+        {
+          "n": "asignado_a",
+          "l": "Técnico asignado",
+          "t": "ref",
+          "ref": "empleados",
+          "lista": true
+        },
+        {
+          "n": "fecha_cierre",
+          "l": "Fecha de cierre",
+          "t": "date"
+        },
+        {
+          "n": "solucion",
+          "l": "Solución",
+          "t": "textarea"
+        }
+      ]
+    }
+  }
+}
