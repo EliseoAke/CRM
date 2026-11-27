@@ -121,6 +121,16 @@ code = (tpl.replace("'__INSTRUCCIONES__'", json.dumps(INSTR, ensure_ascii=False)
            .replace('/*__LISTA_HERRAMIENTAS__*/', ', '.join(tool_vars)))
 (R/'n8n/whatsapp-asistente.workflow.ts').write_text(code)
 
+# 2b) Chat dentro del ERP (misma clave que la API; real solo con MAYALINK_TOKEN)
+tpl = (R/'n8n/chat.workflow.tpl.ts').read_text()
+chat_js = (R/'n8n/validar_chat.js').read_text().replace('__MAYALINK_TOKEN__', token)
+code = (tpl.replace("'__INSTRUCCIONES__'", json.dumps(INSTR, ensure_ascii=False))
+           .replace("'__VALIDAR_CHAT_JS__'", json.dumps(chat_js, ensure_ascii=False))
+           .replace('/*__HERRAMIENTAS__*/', tool_code)
+           .replace('/*__LISTA_HERRAMIENTAS__*/', ', '.join(tool_vars)))
+out = R/('n8n/chat.workflow.ts' if token == '__MAYALINK_TOKEN__' else '.build/chat.workflow.ts')
+out.write_text(code)
+
 # 3) Recordatorios de cobro
 tpl = (R/'n8n/whatsapp-recordatorios.workflow.tpl.ts').read_text()
 (R/'n8n/whatsapp-recordatorios.workflow.ts').write_text(

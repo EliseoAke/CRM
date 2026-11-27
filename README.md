@@ -36,6 +36,7 @@ Navegador ──GET /webhook/mayalink──────▶ n8n: "Mayalink · API
 n8n (programado 6:00) "Mayalink · Facturación mensual"  ─▶ facturas + pólizas
 n8n (programado 7:00) "Mayalink · Cobranza y suspensiones" ─▶ marca vencidas, suspende morosos
 n8n (programado 9:00) "Mayalink · Recordatorios WhatsApp" ─▶ plantillas de WhatsApp a clientes ─▶ ml_mensajes
+Ventana de chat ──POST /webhook/mayalink/chat─▶ n8n: "Mayalink · Asistente en el CRM" ─▶ valida clave ─▶ Asistente (Claude + Data Tables)
 WhatsApp del empleado ─▶ "Mayalink · Asistente por WhatsApp" ─▶ ¿empleado activo? ─▶ Asistente (Claude + Data Tables) ─▶ respuesta
 ```
 
@@ -61,10 +62,11 @@ WhatsApp del empleado ─▶ "Mayalink · Asistente por WhatsApp" ─▶ ¿emple
 
 El **Asistente Mayalink** explica los módulos y procesos del ERP, consulta clientes, planes, facturas, tickets, inventario, prospectos y el catálogo de cuentas, y levanta tickets de soporte. No ve salarios, nómina, CURP ni NSS, y no modifica facturas ni pagos.
 
-Está disponible de dos formas, con el mismo prompt (`n8n/asistente.instrucciones.md`) y las mismas herramientas (definidas en `scripts/build.py`):
+Está disponible de tres formas, con el mismo prompt (`n8n/asistente.instrucciones.md`) y las mismas herramientas (definidas en `scripts/build.py`):
 
-1. **Agente de n8n** "Asistente Mayalink": para chatear desde n8n. Necesita una credencial de Anthropic (Claude Sonnet 5.5).
-2. **Workflow "Mayalink · Asistente por WhatsApp"**: los empleados escriben al número de WhatsApp Business. Solo contesta a teléfonos registrados en RRHH > Empleados con estado *activo* (compara los últimos 10 dígitos); a otros números les da un mensaje genérico. Recuerda los últimos 10 mensajes de cada empleado.
+1. **Dentro del ERP web** (activo): botón 💬 abajo a la derecha. Usa la misma clave de acceso que la app, sabe en qué módulo estás y recuerda la conversación hasta que presionas *Nueva*. Lo atiende el workflow "Mayalink · Asistente en el CRM" con los créditos de IA incluidos en n8n. En modo demostración no está disponible.
+2. **Agente de n8n** "Asistente Mayalink": para chatear desde n8n. Necesita una credencial de Anthropic (Claude Sonnet 5.5).
+3. **Workflow "Mayalink · Asistente por WhatsApp"** (en pausa): los empleados escriben al número de WhatsApp Business. Solo contesta a teléfonos registrados en RRHH > Empleados con estado *activo* (compara los últimos 10 dígitos); a otros números les da un mensaje genérico. Recuerda los últimos 10 mensajes de cada empleado.
 
 ## Puesta en marcha de WhatsApp
 
@@ -98,7 +100,7 @@ n8n/asistente.agent.json   configuración generada del Agente (prompt + herramie
 scripts/build.py           genera la app, los workflows y la config del asistente
 ```
 
-Tras editar el esquema o la app: `python3 scripts/build.py`, haz commit y fusiona a `main`; n8n sirve la versión nueva automáticamente. Si agregas un campo, crea también la columna en la Data Table correspondiente y actualiza el nodo *Validar solicitud* (o regenera con `MAYALINK_TOKEN=<clave> python3 scripts/build.py` y copia `.build/api.workflow.ts`).
+Tras editar el esquema o la app: `python3 scripts/build.py`, haz commit y fusiona a `main`; n8n sirve la versión nueva automáticamente. Si cambias la clave, cámbiala también en el nodo *Validar chat* del workflow del asistente. Si agregas un campo, crea también la columna en la Data Table correspondiente y actualiza el nodo *Validar solicitud* (o regenera con `MAYALINK_TOKEN=<clave> python3 scripts/build.py` y copia `.build/api.workflow.ts`).
 
 ## Siguientes pasos sugeridos
 - Que el asistente reciba fotos o notas de voz de los técnicos.
