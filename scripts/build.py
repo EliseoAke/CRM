@@ -10,6 +10,11 @@ R = pathlib.Path(__file__).resolve().parent.parent
 schema = json.loads((R/'schema/modulos.json').read_text())
 schema.pop('_descripcion', None)
 html = (R/'app/index.src.html').read_text().replace('/*__SCHEMA__*/{}', json.dumps(schema, ensure_ascii=False))
+# Mayito (mascota del asistente): se incrusta como data URI para que la app siga siendo un solo archivo
+import base64
+def data_uri(path):
+    return 'data:image/webp;base64,' + base64.b64encode((R/path).read_bytes()).decode()
+html = html.replace('__MAYITO_AVATAR__', data_uri('app/mayito-avatar.webp')).replace('__MAYITO__', data_uri('app/mayito.webp'))
 (R/'app/index.html').write_text(html)
 
 # Tipos por tabla para validar en el servidor

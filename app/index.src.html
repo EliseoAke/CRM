@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Mayalink ERP</title>
+<link rel="icon" type="image/webp" href="__MAYITO_AVATAR__">
 <script src="https://cdn.tailwindcss.com/3.4.5"></script>
 <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.1/dist/cdn.min.js"></script>
 <style>
@@ -350,21 +351,26 @@
   </div>
 
   <!-- ============ TOAST ============ -->
-  <!-- ============ ASISTENTE MAYALINK (chat) ============ -->
+  <!-- ============ MAYITO, el asistente (chat) ============ -->
   <div x-show="ready" class="no-print">
-    <button @click="chatToggle()" class="fixed bottom-5 right-5 z-50 w-14 h-14 rounded-full bg-teal-600 hover:bg-teal-700 text-white shadow-lg grid place-items-center text-2xl"
-            :title="chat.open ? 'Cerrar asistente' : 'Pregúntale al asistente'" x-text="chat.open ? '×' : '💬'"></button>
+    <button @click="chatToggle()" class="fixed bottom-5 right-5 z-50 w-16 h-16 rounded-full bg-white ring-4 ring-teal-500 hover:ring-teal-600 shadow-xl overflow-hidden grid place-items-center transition-transform hover:scale-105"
+            :title="chat.open ? 'Cerrar a Mayito' : 'Pregúntale a Mayito'">
+      <img x-show="!chat.open" src="__MAYITO_AVATAR__" alt="Mayito" class="w-full h-full object-cover">
+      <span x-show="chat.open" class="text-3xl text-teal-700 leading-none">×</span>
+    </button>
+    <div x-show="!chat.open && !chat.visto" x-transition class="fixed bottom-8 right-24 z-50 bg-white border shadow-lg rounded-xl rounded-br-sm px-3 py-2 text-sm text-slate-700 cursor-pointer" @click="chatToggle()">¡Hola! Soy <b>Mayito</b>, ¿te ayudo?</div>
     <div x-show="chat.open" x-transition class="fixed bottom-24 right-5 z-50 w-[23rem] max-w-[calc(100vw-2.5rem)] h-[34rem] max-h-[calc(100vh-8rem)] bg-white rounded-2xl shadow-2xl border flex flex-col overflow-hidden">
       <div class="bg-slate-900 text-white px-4 py-3 flex items-center gap-3">
-        <div class="w-9 h-9 rounded-full bg-teal-500 grid place-items-center font-black">M</div>
-        <div class="flex-1 min-w-0"><div class="font-semibold leading-tight">Asistente Mayalink</div>
-          <div class="text-xs text-slate-300">Dudas del ERP, procesos y datos de la empresa</div></div>
+        <img src="__MAYITO_AVATAR__" alt="" class="w-10 h-10 rounded-full bg-white ring-2 ring-teal-400 object-cover">
+        <div class="flex-1 min-w-0"><div class="font-semibold leading-tight">Mayito</div>
+          <div class="text-xs text-slate-300">Tu asistente de Mayalink</div></div>
         <button @click="chatNueva()" class="text-xs text-slate-300 hover:text-white" title="Empezar una conversación nueva">Nueva</button>
       </div>
       <div x-ref="chatLog" class="flex-1 overflow-y-auto p-3 space-y-3 bg-slate-50 text-sm">
         <template x-if="!chat.msgs.length">
           <div class="text-slate-600">
-            <p class="mb-3">Hola, soy el asistente de Mayalink. Te ayudo a conocer el sistema y a consultar información. Prueba con:</p>
+            <img src="__MAYITO__" alt="Mayito" class="h-36 mx-auto mb-2 drop-shadow">
+            <p class="mb-3 text-center">¡Hola! Soy <b>Mayito</b>. Te ayudo a conocer el sistema y a consultar información de Mayalink. Prueba con:</p>
             <div class="flex flex-col gap-2">
               <template x-for="sug in chatSugerencias()" :key="sug">
                 <button @click="chatEnviar(sug)" class="text-left border bg-white rounded-lg px-3 py-2 hover:border-teal-500 hover:text-teal-700" x-text="sug"></button>
@@ -373,7 +379,8 @@
           </div>
         </template>
         <template x-for="(m, i) in chat.msgs" :key="i">
-          <div class="flex" :class="m.de==='yo' ? 'justify-end' : 'justify-start'">
+          <div class="flex items-end gap-2" :class="m.de==='yo' ? 'justify-end' : 'justify-start'">
+            <img x-show="m.de!=='yo'" src="__MAYITO_AVATAR__" alt="" class="w-7 h-7 rounded-full bg-white border object-cover shrink-0">
             <div class="rounded-2xl px-3 py-2 max-w-[85%] break-words"
                  :class="m.de==='yo' ? 'bg-teal-600 text-white rounded-br-sm' : (m.error ? 'bg-rose-50 text-rose-800 border border-rose-200 rounded-bl-sm' : 'bg-white border rounded-bl-sm')">
               <span x-show="m.de==='yo'" class="whitespace-pre-wrap" x-text="m.texto"></span>
@@ -381,11 +388,11 @@
             </div>
           </div>
         </template>
-        <div x-show="chat.loading" class="flex justify-start"><div class="bg-white border rounded-2xl rounded-bl-sm px-3 py-2 text-slate-500">Pensando…</div></div>
+        <div x-show="chat.loading" class="flex items-end gap-2 justify-start"><img src="__MAYITO_AVATAR__" alt="" class="w-7 h-7 rounded-full bg-white border object-cover animate-bounce"><div class="bg-white border rounded-2xl rounded-bl-sm px-3 py-2 text-slate-500">Mayito está pensando…</div></div>
       </div>
       <form @submit.prevent="chatEnviar()" class="border-t p-2 flex gap-2 bg-white">
         <textarea x-model="chat.text" @keydown.enter.prevent="if(!$event.shiftKey) chatEnviar()" rows="1" maxlength="2000"
-                  class="flex-1 resize-none border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-teal-500" placeholder="Escribe tu pregunta…"></textarea>
+                  class="flex-1 resize-none border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-teal-500" placeholder="Pregúntale a Mayito…"></textarea>
         <button type="submit" :disabled="chat.loading || !chat.text.trim()" class="bg-teal-600 disabled:opacity-40 text-white rounded-lg px-3 text-sm font-medium">Enviar</button>
       </form>
     </div>
@@ -453,7 +460,7 @@ function erp(){ return {
   S: SCHEMA, modules: MODULES, mod:'tablero', tab:null, crmView:'kanban', menuOpen:false,
   db:{}, ready:false, busy:false, loginError:'', q:'', fil:'', sort:{k:null,d:1}, mes: mesActual(), acumulado:false,
   cfg:{ api:'', token:'', demo:false },
-  chat:{ open:false, msgs:[], text:'', loading:false, sesion:'' },
+  chat:{ open:false, visto:false, msgs:[], text:'', loading:false, sesion:'' },
   form:{ open:false, table:null, row:{} }, pago:{ open:false, f:null, metodo:'efectivo', fecha:hoy() }, toast:{ msg:'', err:false },
 
   // ---------- arranque / sesión ----------
@@ -480,7 +487,7 @@ function erp(){ return {
 
   // ---------- asistente (chat con n8n: POST <api>/../chat) ----------
   chatUrl(){ return String(this.cfg.api||'').replace(/\/api\/?$/, '/chat'); },
-  chatToggle(){ this.chat.open=!this.chat.open; if (this.chat.open) this.$nextTick(()=>this.chatScroll()); },
+  chatToggle(){ this.chat.open=!this.chat.open; this.chat.visto=true; if (this.chat.open) this.$nextTick(()=>this.chatScroll()); },
   chatNueva(){ this.chat.msgs=[]; this.chat.sesion=''; this.chat.text=''; },
   chatScroll(){ const el=this.$refs.chatLog; if (el) el.scrollTop=el.scrollHeight; },
   chatSugerencias(){
@@ -499,11 +506,11 @@ function erp(){ return {
     this.chat.text=''; this.chat.msgs.push({ de:'yo', texto:msg }); this.chat.loading=true; this.$nextTick(()=>this.chatScroll());
     if (!this.chat.sesion) this.chat.sesion = 'crm-' + Date.now().toString(36) + Math.random().toString(36).slice(2,8);
     try {
-      if (this.cfg.demo) throw new Error('El asistente necesita la conexión con n8n. En modo demostración no está disponible.');
+      if (this.cfg.demo) throw new Error('Mayito necesita la conexión con n8n. En modo demostración no está disponible.');
       const res = await fetch(this.chatUrl(), { method:'POST', headers:{'Content-Type':'application/json'},
         body: JSON.stringify({ token:this.cfg.token, mensaje:msg, sesion:this.chat.sesion, modulo:this.mod }) });
       let j=null; try { j = await res.json(); } catch(e) {}
-      if (!res.ok || !j || j.ok===false) throw new Error((j && j.error) || ('El asistente no respondió (HTTP '+res.status+').'));
+      if (!res.ok || !j || j.ok===false) throw new Error((j && j.error) || ('Mayito no respondió (HTTP '+res.status+').'));
       this.chat.msgs.push({ de:'bot', texto:j.respuesta || 'No tengo respuesta para eso.' });
     } catch(e) { this.chat.msgs.push({ de:'bot', texto:e.message, error:true }); }
     this.chat.loading=false; this.$nextTick(()=>this.chatScroll());
