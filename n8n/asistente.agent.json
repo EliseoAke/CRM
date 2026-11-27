@@ -1,0 +1,350 @@
+{
+ "instructions": "Eres el Asistente Mayalink, el compañero de trabajo virtual de los empleados de Mayalink, un proveedor de servicio de internet (ISP). Respondes siempre en español, con tono amable, claro y breve (los mensajes pueden leerse en WhatsApp: usa párrafos cortos y listas sencillas, sin tablas).\n\n## Tu objetivo\n1. Ayudar a cada empleado a conocer el entorno: qué hace cada módulo del ERP, cómo se hacen los procesos y dónde encontrar la información.\n2. Responder dudas operativas consultando los datos reales con tus herramientas (clientes, planes, facturas, tickets, inventario, prospectos, catálogo de cuentas).\n3. Levantar tickets de soporte cuando un empleado te lo pida.\n\n## El ERP de Mayalink\nLa app web está en https://datahau.app.n8n.cloud/webhook/mayalink . Cada empleado entra con la clave de acceso que le da Dirección (nunca la pidas ni la repitas). Módulos:\n- Tablero: indicadores del mes (clientes activos, ingresos, cartera vencida, tickets abiertos).\n- CRM: embudo de prospectos en tablero kanban. Etapas: nuevo, contactado, visita/cotización, negociación, ganado, perdido. Al ganar un prospecto se da de alta como cliente.\n- Clientes y Planes: alta de clientes con plan, zona, día de corte, IP asignada y coordenadas. Estados del cliente: instalacion, activo, suspendido, baja.\n- Facturación: facturas mensuales con folio, periodo, total, estado (pendiente, pagada, vencida, cancelada). Botón Cobrar para registrar el pago y su método (efectivo, transferencia, depósito, tarjeta, OXXO).\n- Finanzas: ingresos y egresos por categoría y cuenta (Caja o Bancos).\n- Contabilidad: pólizas (asientos de doble partida), catálogo de cuentas, balanza de comprobación y estado de resultados.\n- RRHH: empleados, departamentos (dirección, técnico, soporte, ventas, administración, cobranza) y nómina.\n- Inventario: equipos (routers, antenas, ONUs, cable, etc.) con serie, MAC, estado y a qué cliente están asignados.\n- Soporte: tickets con categoría (sin_servicio, lentitud, intermitencia, instalacion, cambio_plan, facturacion, otro), prioridad (baja, media, alta, urgente) y estado (abierto, en_proceso, resuelto, cerrado).\n- Configuración: datos de la empresa y conexión.\n\n## Reglas del negocio\n- Los precios de los planes ya incluyen IVA del 16%. Subtotal = total / 1.16; IVA = total - subtotal.\n- Facturación automática: todos los días a las 6:00 (hora de Mérida) se generan las facturas de los clientes activos cuyo día de corte es hoy. Vencen 5 días después de emitirse.\n- Cobranza automática: todos los días a las 7:00 las facturas no pagadas con fecha de vencimiento pasada se marcan como vencidas, y si llevan más de 3 días de gracia vencidas el cliente se suspende. Al pagar, el cliente vuelve a activo.\n- Contabilidad automática: al facturar se carga 105 Clientes y se abona 401 Ingresos por servicio (subtotal) y 208 IVA trasladado (IVA). Al cobrar se carga 101 Caja o 102 Bancos y se abona 105 Clientes. Los gastos se cargan a la cuenta de su categoría.\n- Recordatorios por WhatsApp (en preparación, todavía no están activos): todos los días a las 9:00 se enviará a cada cliente, una sola vez por factura y tipo, el aviso que le toque: factura emitida, pago por vencer (un día antes), pago vencido o servicio suspendido. Quedarán registrados en la tabla ml_mensajes.\n\n## Cómo usar tus herramientas\n- Te pueden escribir desde la ventana de chat del ERP o desde WhatsApp. Si el mensaje indica el módulo en el que está el empleado, úsalo como contexto para dar instrucciones paso a paso sobre esa pantalla.\n- Usa siempre las herramientas para datos concretos (saldos, estados, folios, existencias). Nunca inventes datos; si no encuentras algo, dilo y sugiere dónde revisarlo en el ERP.\n- Para facturas de un cliente, primero busca al cliente por nombre para obtener su id.\n- Los campos plan_id y cliente_id son el id numérico de la fila en la tabla correspondiente.\n- Antes de crear un ticket, confirma con el empleado el cliente, el asunto, la categoría y la prioridad. Si no sabe a quién asignarlo, usa 0 (sin asignar).\n\n## Privacidad y seguridad\n- No tienes acceso a salarios, nómina, CURP ni NSS, y no debes adivinarlos; para eso remite a RRHH.\n- No compartas datos personales de clientes más allá de lo necesario para el trabajo.\n- Nunca reveles claves, tokens ni configuraciones internas. No modificas facturas, pagos ni clientes: solo consultas y creas tickets. Para cambios, explica cómo hacerlos en el ERP.\n- Si algo está fuera de tu alcance, dilo con honestidad y sugiere a quién preguntar (Dirección, Administración, Soporte, Cobranza).",
+ "tools": [
+  {
+   "type": "node",
+   "name": "buscar_clientes",
+   "description": "Busca clientes por nombre (búsqueda parcial, sin distinguir mayúsculas). Devuelve id, teléfono, zona, plan_id, estado, día de corte, IP, etc.",
+   "node": {
+    "nodeType": "n8n-nodes-base.dataTableTool",
+    "nodeTypeVersion": 1.1,
+    "nodeParameters": {
+     "resource": "row",
+     "operation": "get",
+     "dataTableId": {
+      "__rl": true,
+      "mode": "id",
+      "value": "NtLuJ1Mw2dLrWBSZ",
+      "cachedResultName": "ml_clientes"
+     },
+     "matchType": "allConditions",
+     "filters": {
+      "conditions": [
+       {
+        "keyName": "nombre",
+        "condition": "ilike",
+        "keyValue": "=%{{ $fromAI('nombre', 'Parte del nombre del cliente a buscar', 'string') }}%"
+       }
+      ]
+     },
+     "returnAll": false,
+     "limit": 20
+    }
+   }
+  },
+  {
+   "type": "node",
+   "name": "clientes_por_estado",
+   "description": "Lista clientes según su estado: instalacion, activo, suspendido o baja.",
+   "node": {
+    "nodeType": "n8n-nodes-base.dataTableTool",
+    "nodeTypeVersion": 1.1,
+    "nodeParameters": {
+     "resource": "row",
+     "operation": "get",
+     "dataTableId": {
+      "__rl": true,
+      "mode": "id",
+      "value": "NtLuJ1Mw2dLrWBSZ",
+      "cachedResultName": "ml_clientes"
+     },
+     "matchType": "allConditions",
+     "filters": {
+      "conditions": [
+       {
+        "keyName": "estado",
+        "condition": "eq",
+        "keyValue": "={{ $fromAI('estado', 'Estado del cliente: instalacion, activo, suspendido o baja', 'string') }}"
+       }
+      ]
+     },
+     "returnAll": false,
+     "limit": 100
+    }
+   }
+  },
+  {
+   "type": "node",
+   "name": "ver_planes",
+   "description": "Lista todos los planes de internet con velocidad de bajada y subida, precio mensual (IVA incluido), costo de instalación y si está activo.",
+   "node": {
+    "nodeType": "n8n-nodes-base.dataTableTool",
+    "nodeTypeVersion": 1.1,
+    "nodeParameters": {
+     "resource": "row",
+     "operation": "get",
+     "dataTableId": {
+      "__rl": true,
+      "mode": "id",
+      "value": "RhRscMlZ33AS05ga",
+      "cachedResultName": "ml_planes"
+     },
+     "returnAll": true
+    }
+   }
+  },
+  {
+   "type": "node",
+   "name": "facturas_de_cliente",
+   "description": "Lista las facturas de un cliente por su id numérico (cliente_id). Devuelve folio, periodo, total, estado, vencimiento y pago.",
+   "node": {
+    "nodeType": "n8n-nodes-base.dataTableTool",
+    "nodeTypeVersion": 1.1,
+    "nodeParameters": {
+     "resource": "row",
+     "operation": "get",
+     "dataTableId": {
+      "__rl": true,
+      "mode": "id",
+      "value": "fDXft9y444tDg0EU",
+      "cachedResultName": "ml_facturas"
+     },
+     "matchType": "allConditions",
+     "filters": {
+      "conditions": [
+       {
+        "keyName": "cliente_id",
+        "condition": "eq",
+        "keyValue": "={{ $fromAI('cliente_id', 'Id numérico del cliente', 'number') }}"
+       }
+      ]
+     },
+     "returnAll": false,
+     "limit": 24,
+     "orderBy": true,
+     "orderByColumn": "createdAt",
+     "orderByDirection": "DESC"
+    }
+   }
+  },
+  {
+   "type": "node",
+   "name": "facturas_por_estado",
+   "description": "Lista facturas por estado: pendiente, pagada, vencida o cancelada. Útil para cartera vencida y cobranza.",
+   "node": {
+    "nodeType": "n8n-nodes-base.dataTableTool",
+    "nodeTypeVersion": 1.1,
+    "nodeParameters": {
+     "resource": "row",
+     "operation": "get",
+     "dataTableId": {
+      "__rl": true,
+      "mode": "id",
+      "value": "fDXft9y444tDg0EU",
+      "cachedResultName": "ml_facturas"
+     },
+     "matchType": "allConditions",
+     "filters": {
+      "conditions": [
+       {
+        "keyName": "estado",
+        "condition": "eq",
+        "keyValue": "={{ $fromAI('estado', 'Estado de la factura: pendiente, pagada, vencida o cancelada', 'string') }}"
+       }
+      ]
+     },
+     "returnAll": false,
+     "limit": 100,
+     "orderBy": true,
+     "orderByColumn": "createdAt",
+     "orderByDirection": "DESC"
+    }
+   }
+  },
+  {
+   "type": "node",
+   "name": "tickets_recientes",
+   "description": "Lista los 50 tickets de soporte más recientes con cliente_id, asunto, categoría, prioridad, estado y asignado.",
+   "node": {
+    "nodeType": "n8n-nodes-base.dataTableTool",
+    "nodeTypeVersion": 1.1,
+    "nodeParameters": {
+     "resource": "row",
+     "operation": "get",
+     "dataTableId": {
+      "__rl": true,
+      "mode": "id",
+      "value": "BSfKEtnTsE1WfEej",
+      "cachedResultName": "ml_tickets"
+     },
+     "returnAll": false,
+     "limit": 50,
+     "orderBy": true,
+     "orderByColumn": "createdAt",
+     "orderByDirection": "DESC"
+    }
+   }
+  },
+  {
+   "type": "node",
+   "name": "ver_inventario",
+   "description": "Lista el inventario de equipos: tipo, marca, modelo, serie, MAC, cantidad, estado, cliente asignado y ubicación.",
+   "node": {
+    "nodeType": "n8n-nodes-base.dataTableTool",
+    "nodeTypeVersion": 1.1,
+    "nodeParameters": {
+     "resource": "row",
+     "operation": "get",
+     "dataTableId": {
+      "__rl": true,
+      "mode": "id",
+      "value": "nhtCCNNk8DM7c70Y",
+      "cachedResultName": "ml_inventario"
+     },
+     "returnAll": false,
+     "limit": 200
+    }
+   }
+  },
+  {
+   "type": "node",
+   "name": "ver_prospectos",
+   "description": "Lista los prospectos de venta del CRM con etapa, origen, zona, valor estimado y próximo contacto.",
+   "node": {
+    "nodeType": "n8n-nodes-base.dataTableTool",
+    "nodeTypeVersion": 1.1,
+    "nodeParameters": {
+     "resource": "row",
+     "operation": "get",
+     "dataTableId": {
+      "__rl": true,
+      "mode": "id",
+      "value": "MFr086vVY2Kqoeb5",
+      "cachedResultName": "ml_prospectos"
+     },
+     "returnAll": false,
+     "limit": 100,
+     "orderBy": true,
+     "orderByColumn": "createdAt",
+     "orderByDirection": "DESC"
+    }
+   }
+  },
+  {
+   "type": "node",
+   "name": "catalogo_cuentas",
+   "description": "Devuelve el catálogo de cuentas contables (código, nombre, tipo y naturaleza).",
+   "node": {
+    "nodeType": "n8n-nodes-base.dataTableTool",
+    "nodeTypeVersion": 1.1,
+    "nodeParameters": {
+     "resource": "row",
+     "operation": "get",
+     "dataTableId": {
+      "__rl": true,
+      "mode": "id",
+      "value": "4jg23yvj0W7cJD9k",
+      "cachedResultName": "ml_cuentas"
+     },
+     "returnAll": true
+    }
+   }
+  },
+  {
+   "type": "node",
+   "name": "crear_ticket",
+   "description": "Crea un ticket de soporte nuevo en estado abierto. Confirma los datos con el empleado antes de usarla.",
+   "node": {
+    "nodeType": "n8n-nodes-base.dataTableTool",
+    "nodeTypeVersion": 1.1,
+    "nodeParameters": {
+     "resource": "row",
+     "operation": "insert",
+     "dataTableId": {
+      "__rl": true,
+      "mode": "id",
+      "value": "BSfKEtnTsE1WfEej",
+      "cachedResultName": "ml_tickets"
+     },
+     "columns": {
+      "mappingMode": "defineBelow",
+      "value": {
+       "folio": "=TK-{{ $now.setZone('America/Merida').toFormat('yyMMddHHmmss') }}",
+       "cliente_id": "={{ $fromAI('cliente_id', 'Id numérico del cliente', 'number') }}",
+       "asunto": "={{ $fromAI('asunto', 'Asunto corto del ticket', 'string') }}",
+       "descripcion": "={{ $fromAI('descripcion', 'Descripción detallada del problema', 'string') }}",
+       "categoria": "={{ $fromAI('categoria', 'Una de: sin_servicio, lentitud, intermitencia, instalacion, cambio_plan, facturacion, otro', 'string') }}",
+       "prioridad": "={{ $fromAI('prioridad', 'Una de: baja, media, alta, urgente', 'string') }}",
+       "estado": "abierto",
+       "asignado_a": "={{ $fromAI('asignado_a', 'Id numérico del empleado asignado, 0 si no se sabe', 'number') }}"
+      },
+      "schema": [
+       {
+        "id": "folio",
+        "displayName": "folio",
+        "required": false,
+        "defaultMatch": false,
+        "display": true,
+        "type": "string",
+        "canBeUsedToMatch": true
+       },
+       {
+        "id": "cliente_id",
+        "displayName": "cliente_id",
+        "required": false,
+        "defaultMatch": false,
+        "display": true,
+        "type": "number",
+        "canBeUsedToMatch": true
+       },
+       {
+        "id": "asunto",
+        "displayName": "asunto",
+        "required": false,
+        "defaultMatch": false,
+        "display": true,
+        "type": "string",
+        "canBeUsedToMatch": true
+       },
+       {
+        "id": "descripcion",
+        "displayName": "descripcion",
+        "required": false,
+        "defaultMatch": false,
+        "display": true,
+        "type": "string",
+        "canBeUsedToMatch": true
+       },
+       {
+        "id": "categoria",
+        "displayName": "categoria",
+        "required": false,
+        "defaultMatch": false,
+        "display": true,
+        "type": "string",
+        "canBeUsedToMatch": true
+       },
+       {
+        "id": "prioridad",
+        "displayName": "prioridad",
+        "required": false,
+        "defaultMatch": false,
+        "display": true,
+        "type": "string",
+        "canBeUsedToMatch": true
+       },
+       {
+        "id": "estado",
+        "displayName": "estado",
+        "required": false,
+        "defaultMatch": false,
+        "display": true,
+        "type": "string",
+        "canBeUsedToMatch": true
+       },
+       {
+        "id": "asignado_a",
+        "displayName": "asignado_a",
+        "required": false,
+        "defaultMatch": false,
+        "display": true,
+        "type": "number",
+        "canBeUsedToMatch": true
+       }
+      ]
+     }
+    }
+   }
+  }
+ ]
+}
